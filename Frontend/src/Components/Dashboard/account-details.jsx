@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-<<<<<<< HEAD
 import { useAuth } from '../../Context/authContext'; // Adjust the path based on your folder structure
-=======
-
-
->>>>>>> 6794976 (Add files with proper line endings)
 
 const AccountDetails = () => {
   const { authData, updateUserData } = useAuth(); 

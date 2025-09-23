@@ -46,26 +46,7 @@ const Filter = ({ onPriceChange }) => {
     "Kitchenware",
   ];
   
-<<<<<<< HEAD
   
-=======
-
-  const filterColors = [
-    "#0B2472",
-    "#D6BB4F",
-    "#282828",
-    "#B0D6E8",
-    "#9C7539",
-    "#D29B47",
-    "#E5AE95",
-    "#D76B67",
-    "#BABABA",
-    "#BFDCC4",
-  ];
-
-  const filterSizes = ["XS", "S", "M", "L", "XL", "XXL"];
-
->>>>>>> 6794976 (Add files with proper line endings)
   return (
     <div>
       <div className="filterSection">
