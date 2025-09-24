@@ -15,8 +15,7 @@ import brand2 from "../../Assets/Brands/brand2.png";
 import brand3 from "../../Assets/Brands/brand3.png";
 import brand4 from "../../Assets/Brands/brand4.png";
 import brand5 from "../../Assets/Brands/brand5.png";
-import brand6 from "../../Assets/Brands/brand6.png";
-import brand7 from "../../Assets/Brands/brand7.png";
+
 
 const AboutPage = () => {
   return (

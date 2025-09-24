@@ -1,3 +1,6 @@
+// swift-shop-v2/Backend/routes/authRoutes.js
+
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -101,17 +104,15 @@ router.put('/update-password', async (req, res) => {
       return res.status(400).json({ message: 'email, currentPassword, newPassword required' });
     }
 
-    const [[user]] = await db.query('SELECT id, password_hash FROM users WHERE email=?', [email]);
+    const [rows] = await db.query('SELECT id, password_hash FROM users WHERE email=?', [email.trim().toLowerCase()]);
+    const user = rows[0];
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
     const ok = await bcrypt.compare(currentPassword, user.password_hash);
     if (!ok) return res.status(401).json({ message: 'Current password incorrect.' });
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    await db.query(
-      'UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?',
-      [newHash, user.id]
-    );
+    await db.query('UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?', [newHash, user.id]);
 
     res.json({ message: 'Password updated successfully.' });
   } catch (err) {

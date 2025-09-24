@@ -9,7 +9,6 @@ import { FaXTwitter } from "react-icons/fa6";
 import { FaInstagram } from "react-icons/fa";
 import { FaYoutube } from "react-icons/fa";
 import { FaPinterest } from "react-icons/fa";
-
 import { Link } from "react-router-dom";
 
 const Footer = () => {
@@ -19,11 +18,11 @@ const Footer = () => {
   };
 
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  // Placeholder actions for social icons without live profiles
+  const comingSoon = (name) => () => alert(`${name} profile coming soon`);
 
   return (
     <>
@@ -31,11 +30,10 @@ const Footer = () => {
         <div className="footer__container">
           <div className="footer_left">
             <div className="footer_logo_container">
-              <img src={logo} alt="" />
+              <img src={logo} alt="Swift Shop LTD" />
             </div>
 
             <p>
-              {" "}
               82a James Carter Road, Mildenhall, Bury St. Edmunds, Suffolk,
               England, IP28 7DE United Kingdom
             </p>
@@ -46,25 +44,49 @@ const Footer = () => {
             </div>
 
             <div className="social_links">
+              {/* Valid external link */}
               <a
                 href="https://www.facebook.com/swiftshopbd"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="Facebook"
               >
                 <FaFacebookF />
               </a>
-              <a href="" target="_blank" rel="noopener noreferrer">
+
+              {/* Buttons for non-navigational actions (no invalid href) */}
+              <button
+                type="button"
+                onClick={comingSoon("X (Twitter)")}
+                className="icon-button"
+                aria-label="X (Twitter)"
+              >
                 <FaXTwitter />
-              </a>
-              <a href="" target="_blank" rel="noopener noreferrer">
+              </button>
+              <button
+                type="button"
+                onClick={comingSoon("Instagram")}
+                className="icon-button"
+                aria-label="Instagram"
+              >
                 <FaInstagram />
-              </a>
-              <a href="" target="_blank" rel="noopener noreferrer">
+              </button>
+              <button
+                type="button"
+                onClick={comingSoon("YouTube")}
+                className="icon-button"
+                aria-label="YouTube"
+              >
                 <FaYoutube />
-              </a>
-              <a href="" target="_blank" rel="noopener noreferrer">
+              </button>
+              <button
+                type="button"
+                onClick={comingSoon("Pinterest")}
+                className="icon-button"
+                aria-label="Pinterest"
+              >
                 <FaPinterest />
-              </a>
+              </button>
             </div>
           </div>
 
@@ -90,6 +112,7 @@ const Footer = () => {
               </ul>
             </div>
           </div>
+
           <div className="footer_content">
             <h5>Shop</h5>
             <div className="links_container">
@@ -112,6 +135,7 @@ const Footer = () => {
               </ul>
             </div>
           </div>
+
           <div className="footer_content">
             <h5>Help</h5>
             <div className="links_container">
@@ -137,6 +161,7 @@ const Footer = () => {
               </ul>
             </div>
           </div>
+
           <div className="footer_right">
             <h5>Subscribe</h5>
             <p>
@@ -151,16 +176,17 @@ const Footer = () => {
 
             <h6>Secure Payments</h6>
             <div className="paymentIconContainer">
-              <img src={paymentIcon} alt="" />
+              <img src={paymentIcon} alt="Supported payment methods" />
             </div>
           </div>
         </div>
+
         <div className="footer_bottom">
           <p>© 2025 Swift Shop LTD</p>
           <div className="footerLangCurrency">
             <div className="footerLang">
               <p>Language</p>
-              <select name="language" id="language">
+              <select name="language" id="language" defaultValue="English">
                 <option value="English">English</option>
                 <option value="Bangla">Bangla</option>
                 <option value="Germany">Germany</option>
@@ -169,16 +195,39 @@ const Footer = () => {
             </div>
             <div className="footerCurrency">
               <p>Currency</p>
-              <select name="currency" id="currency">
+              <select name="currency" id="currency" defaultValue="GBP">
                 <option value="USD">$ USD</option>
                 <option value="BDT">৳ BDT</option>
                 <option value="EUR">€ EUR</option>
-                <option value="GBP" selected>£ GBP</option>
+                <option value="GBP">£ GBP</option>
               </select>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Optional: style buttons to look like links/icons */}
+      <style>{`
+        .icon-button {
+          background: none;
+          border: none;
+          padding: 0;
+          margin: 0 8px 0 0;
+          cursor: pointer;
+          line-height: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: inherit;
+        }
+        .icon-button:focus {
+          outline: 2px solid currentColor;
+          outline-offset: 2px;
+        }
+        .social_links a, .social_links .icon-button {
+          font-size: 18px;
+        }
+      `}</style>
     </>
   );
 };

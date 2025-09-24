@@ -53,8 +53,8 @@ const ShoppingCart = () => {
 
   const formatDate = (date) => {
     const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const year = date.getFullYear();
+   const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
     return `£{day}/£{month}/£{year}`;
   };
 
@@ -79,7 +79,7 @@ const ShoppingCart = () => {
     // setLoading(true);
     // setOrderError(""); // Reset error message
     try {
-      const response = await fetch("http://localhost:5000/orders", {
+      const response = await fetch("http://localhost:4000/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -462,7 +462,7 @@ const ShoppingCart = () => {
             )}
 
             {/* tab2 */}
-         {/* tab2 */}
+   
 {activeTab === "cartTab2" && (
   <div className="checkoutSection">
     <div className="checkoutDetailsSection">
@@ -669,7 +669,8 @@ const ShoppingCart = () => {
   </div>
 )}
 
-
+      {/* tab2 */}
+      
             {/* tab3 */}
             {activeTab === "cartTab3" && (
               <div className="orderCompleteSection">

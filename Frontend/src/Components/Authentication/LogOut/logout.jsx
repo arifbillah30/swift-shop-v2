@@ -1,6 +1,6 @@
 // Frontend/src/Components/Authentication/LogOut/logout.jsx
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../Context/authContext'; // Adjust the path based on your folder structure
 

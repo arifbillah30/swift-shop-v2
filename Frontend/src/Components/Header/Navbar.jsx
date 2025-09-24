@@ -35,6 +35,8 @@ const Navbar = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const comingSoon = (name) => () => alert(`${name} profile coming soon`);
+
   return (
     <>
       {/* Desktop Menu */}
@@ -48,29 +50,19 @@ const Navbar = () => {
           <div className="linkContainer">
             <ul>
               <li>
-                <Link to="/" onClick={scrollToTop}>
-                  HOME
-                </Link>
+                <Link to="/" onClick={scrollToTop}>HOME</Link>
               </li>
               <li>
-                <Link to="/shop" onClick={scrollToTop}>
-                  SHOP
-                </Link>
+                <Link to="/shop" onClick={scrollToTop}>SHOP</Link>
               </li>
               <li>
-                <Link to="/blog" onClick={scrollToTop}>
-                  BLOG
-                </Link>
+                <Link to="/blog" onClick={scrollToTop}>BLOG</Link>
               </li>
               <li>
-                <Link to="/about" onClick={scrollToTop}>
-                  ABOUT
-                </Link>
+                <Link to="/about" onClick={scrollToTop}>ABOUT</Link>
               </li>
               <li>
-                <Link to="/contact" onClick={scrollToTop}>
-                  CONTACT
-                </Link>
+                <Link to="/contact" onClick={scrollToTop}>CONTACT</Link>
               </li>
             </ul>
           </div>
@@ -78,8 +70,8 @@ const Navbar = () => {
         <div className="iconContainer">
           <FiSearch size={22} onClick={scrollToTop} />
           {authData.user ? (
-             <div className="account-dropdown-container">
-             <DropdownMenu />
+            <div className="account-dropdown-container">
+              <DropdownMenu />
             </div>
           ) : (
             <Link to="/loginSignUp" onClick={scrollToTop} className="signin-link">
@@ -129,31 +121,11 @@ const Navbar = () => {
             </div>
             <div className="mobile-menuList">
               <ul>
-                <li>
-                  <Link to="/" onClick={toggleMobileMenu}>
-                    HOME
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/shop" onClick={toggleMobileMenu}>
-                    SHOP
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/blog" onClick={toggleMobileMenu}>
-                    BLOG
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/about" onClick={toggleMobileMenu}>
-                    ABOUT
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/contact" onClick={toggleMobileMenu}>
-                    CONTACT
-                  </Link>
-                </li>
+                <li><Link to="/" onClick={toggleMobileMenu}>HOME</Link></li>
+                <li><Link to="/shop" onClick={toggleMobileMenu}>SHOP</Link></li>
+                <li><Link to="/blog" onClick={toggleMobileMenu}>BLOG</Link></li>
+                <li><Link to="/about" onClick={toggleMobileMenu}>ABOUT</Link></li>
+                <li><Link to="/contact" onClick={toggleMobileMenu}>CONTACT</Link></li>
               </ul>
             </div>
           </div>
@@ -164,8 +136,8 @@ const Navbar = () => {
                 <Link to="/account" onClick={toggleMobileMenu}>
                   <FaRegUser size={22} />
                   <span className="signin-text">
-                     {authData.user.displayName ? authData.user.displayName.toUpperCase() : 'MY'} ACCOUNT
-              </span>
+                    {authData.user.displayName ? authData.user.displayName.toUpperCase() : "MY"} ACCOUNT
+                  </span>
                 </Link>
               ) : (
                 <Link to="/loginSignUp" onClick={toggleMobileMenu}>
@@ -174,10 +146,11 @@ const Navbar = () => {
                 </Link>
               )}
             </div>
+
             <div className="mobile-menuFooterLangCurrency">
               <div className="mobile-menuFooterLang">
                 <p>Language</p>
-                <select name="language" id="language">
+                <select name="language" id="language" defaultValue="English">
                   <option value="English">English</option>
                   <option value="Bangla">Bangla</option>
                   <option value="Germany">Germany</option>
@@ -186,38 +159,80 @@ const Navbar = () => {
               </div>
               <div className="mobile-menuFooterCurrency">
                 <p>Currency</p>
-                <select name="currency" id="currency">
+                <select name="currency" id="currency" defaultValue="GBP">
                   <option value="USD">$ USD</option>
                   <option value="BDT">৳ BDT</option>
                   <option value="EUR">€ EUR</option>
-                  <option value="GBP" selected>£ GBP</option>
+                  <option value="GBP">£ GBP</option>
                 </select>
               </div>
             </div>
+
             <div className="mobile-menuSocial_links">
+              {/* Valid external link */}
               <a
-                            href="https://www.facebook.com/swiftshopbd"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <FaFacebookF />
-                          </a>
-                          <a href="" target="_blank" rel="noopener noreferrer">
-                            <FaXTwitter />
-                          </a>
-                          <a href="" target="_blank" rel="noopener noreferrer">
-                            <FaInstagram />
-                          </a>
-                          <a href="" target="_blank" rel="noopener noreferrer">
-                            <FaYoutube />
-                          </a>
-                          <a href="" target="_blank" rel="noopener noreferrer">
-                            <FaPinterest />
-                          </a>
+                href="https://www.facebook.com/swiftshopbd"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+              >
+                <FaFacebookF />
+              </a>
+
+              {/* Buttons instead of empty anchors */}
+              <button
+                type="button"
+                onClick={comingSoon("X (Twitter)")}
+                className="icon-button"
+                aria-label="X (Twitter)"
+              >
+                <FaXTwitter />
+              </button>
+              <button
+                type="button"
+                onClick={comingSoon("Instagram")}
+                className="icon-button"
+                aria-label="Instagram"
+              >
+                <FaInstagram />
+              </button>
+              <button
+                type="button"
+                onClick={comingSoon("YouTube")}
+                className="icon-button"
+                aria-label="YouTube"
+              >
+                <FaYoutube />
+              </button>
+              <button
+                type="button"
+                onClick={comingSoon("Pinterest")}
+                className="icon-button"
+                aria-label="Pinterest"
+              >
+                <FaPinterest />
+              </button>
             </div>
           </div>
         </div>
       </nav>
+
+      {/* Optional: style icon buttons */}
+      <style>{`
+        .icon-button {
+          background: none;
+          border: none;
+          padding: 0;
+          margin: 0 8px 0 0;
+          cursor: pointer;
+          line-height: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: inherit;
+        }
+        .icon-button:focus { outline: 2px solid currentColor; outline-offset: 2px; }
+      `}</style>
     </>
   );
 };
