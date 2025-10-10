@@ -1,11 +1,11 @@
 {
   "name": "backend",
-  "version": "1.0.0",
-  "description": "Express server for serving the SwiftShop project",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "Express server for serving the SwiftShop project with clean MVC architecture",
+  "main": "src/index.js",
   "scripts": {
-    "start": "nodemon server.js",
-    "dev": "nodemon server.js"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
   "keywords": [],
   "author": "Arif",
@@ -15,6 +15,7 @@
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.18.0",
