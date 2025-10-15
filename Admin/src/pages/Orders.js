@@ -82,7 +82,7 @@ const Orders = () => {
       const exportData = res?.orders?.map((order) => {
         return {
           _id: order._id,
-          invoice: order.invoice,
+          invoice: order.invoice || order.order_number,
           subTotal: order.subTotal,
           shippingCost: order.shippingCost,
           discount: order?.discount,

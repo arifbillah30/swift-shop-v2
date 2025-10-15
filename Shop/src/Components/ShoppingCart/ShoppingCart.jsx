@@ -5,30 +5,53 @@ import "./ShoppingCart.css";
 import { useSelector, useDispatch } from "react-redux";
 import {
   removeFromCart,
+  removeFromCartServer,
   updateQuantity,
+  updateCartItemServer,
   selectCartTotalAmount,
+  selectCartAuthenticated,
+  fetchCart,
+  setAuthenticated
 } from "../../Features/Cart/cartSlice";
 import { MdOutlineClose } from "react-icons/md";
 import { Link } from "react-router-dom";
 import success from "../../Assets/success.png";
 import { useAuth } from "../../Context/authContext";
+import OrderService from "../../services/OrderService";
+import { formatPrice, getCurrencySymbol } from "../../utils/currency";
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:4000";
 const SHIPPING_FEE = 5;
 const VAT_FEE = 11;
 
 const ShoppingCart = () => {
+  const currencySymbol = getCurrencySymbol();
   const { authData } = useAuth();
 
   const cartItems = useSelector((state) => state.cart.items);
+  const isAuthenticated = useSelector(selectCartAuthenticated);
   const dispatch = useDispatch();
 
   const [activeTab, setActiveTab] = useState("cartTab1");
   const [payments, setPayments] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState("Direct Bank Transfer");
+  const [selectedPayment, setSelectedPayment] = useState("Cash on delivery");
 
   // shipping address (from /addresses/:email/shipping)
   const [shippingAddress, setShippingAddress] = useState(null);
+
+  // Check authentication status and load cart
+  useEffect(() => {
+    const token = authData?.user?.token || 
+                 JSON.parse(sessionStorage.getItem("user") || "{}")?.token ||
+                 localStorage.getItem("token");
+    
+    if (token) {
+      dispatch(setAuthenticated(true));
+      dispatch(fetchCart());
+    } else {
+      dispatch(setAuthenticated(false));
+    }
+  }, [authData, dispatch]);
 
   const handleTabClick = (tab) => {
     if (tab === "cartTab1" || cartItems.length > 0) {
@@ -38,7 +61,30 @@ const ShoppingCart = () => {
 
   const handleQuantityChange = (productId, quantity) => {
     if (quantity >= 1 && quantity <= 20) {
-      dispatch(updateQuantity({ productID: productId, quantity }));
+      const cartItem = cartItems.find(item => item.productID === productId);
+      
+      if (isAuthenticated && cartItem?.cartItemId) {
+        // Use server-side update
+        dispatch(updateCartItemServer({ 
+          itemId: cartItem.cartItemId, 
+          quantity 
+        }));
+      } else {
+        // Use local cart update
+        dispatch(updateQuantity({ productID: productId, quantity }));
+      }
+    }
+  };
+
+  const handleRemoveFromCart = (productId) => {
+    const cartItem = cartItems.find(item => item.productID === productId);
+    
+    if (isAuthenticated && cartItem?.cartItemId) {
+      // Use server-side removal
+      dispatch(removeFromCartServer(cartItem.cartItemId));
+    } else {
+      // Use local cart removal
+      dispatch(removeFromCart(productId));
     }
   };
 
@@ -109,72 +155,48 @@ const ShoppingCart = () => {
       return;
     }
 
-    // Map cart items to order_items snapshot
-    const items = cartItems.map((ci) => ({
-      // If you have real product/variant IDs, pass them here; otherwise nulls are OK
-      product_id: ci.productID || null,
-      variant_id: ci.variantID || null,
-      product_name_snapshot: ci.productName,
-      unit_price: Number(ci.productPrice) || 0,
-      quantity: Number(ci.quantity) || 1,
-      front_img_snapshot: ci.frontImg || null,
-      back_img_snapshot: ci.backImg || null,
-      reviews_text_snapshot: ci.productReviews || null,
-    }));
-
-    const shippingAddrPayload = shippingAddress
-      ? {
-          address_type: "shipping",
-          full_name: [authData?.user?.firstName, authData?.user?.lastName].filter(Boolean).join(" ") || null,
-          phone: authData?.user?.phone || null,
-          line1: shippingAddress.line1 || shippingAddress.address_line || "",
-          line2: shippingAddress.line2 || null,
-          city: shippingAddress.city || "",
-          state: shippingAddress.state || null,
-          postal_code: shippingAddress.postal_code || shippingAddress.postcode || "",
-          country_code: (shippingAddress.country_code || shippingAddress.country || "BD").toString().slice(0, 2),
-        }
-      : null;
-
-    // Totals (frontend snapshot)
-    const monetary = {
-      currency: "BDT", // adjust if you truly charge in GBP
-      subtotal: Number(totalPrice) || 0,
-      discount_total: 0,
-      tax_total: totalPrice > 0 ? VAT_FEE : 0,
-      shipping_total: totalPrice > 0 ? SHIPPING_FEE : 0,
-      grand_total: Number(grandTotal) || 0,
-    };
-
-    const payload = {
-      user_email: user.email,
-      payment_method: selectedPayment,
-      ...monetary,
-      items,
-      shipping_address: shippingAddrPayload, // backend can treat it as snapshot
-    };
+    if (!selectedPayment) {
+      alert("Please select a payment method.");
+      return;
+    }
 
     try {
-      const response = await fetch(`${API_BASE}/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // Build order payload using OrderService
+      const orderPayload = OrderService.buildOrderPayload(
+        cartItems,
+        shippingAddress,
+        selectedPayment,
+        {
+          currency: "BDT",
+          subtotal: Number(totalPrice) || 0,
+          discount_total: 0,
+          tax_total: totalPrice > 0 ? VAT_FEE : 0,
+          shipping_total: totalPrice > 0 ? SHIPPING_FEE : 0,
+          grand_total: Number(grandTotal) || 0
+        },
+        user
+      );
 
-      const result = await response.json();
-      if (!response.ok || !result?.success) {
-        console.error("Create order failed:", result);
-        alert(result?.message || "Failed to create order.");
-        return;
-      }
+      console.log("Creating order with payload:", orderPayload);
 
-      // success: advance to confirmation
+      // Create order using OrderService
+      const result = await OrderService.createOrder(orderPayload);
+
+      console.log("Order created successfully:", result);
+
+      // Clear cart after successful order
+      dispatch(setAuthenticated(false)); // Reset cart state
+      
+      // Advance to confirmation
       handleTabClick("cartTab3");
       window.scrollTo({ top: 0, behavior: "smooth" });
       setPayments(true);
+      
+      alert(`Order created successfully! Order ID: ${result.order_number}`);
+      
     } catch (error) {
       console.error("Error creating order:", error);
-      alert("An error occurred while creating the order.");
+      alert(error.message || "An error occurred while creating the order.");
     }
   };
 
@@ -270,7 +292,7 @@ const ShoppingCart = () => {
                               </div>
                             </td>
                             <td data-label="Price" style={{ textAlign: "center" }}>
-                              £{item.productPrice}
+                              {formatPrice(item.productPrice)}
                             </td>
                             <td data-label="Quantity">
                               <div className="ShoppingBagTableQuantity">
@@ -302,14 +324,14 @@ const ShoppingCart = () => {
                                 </button>
                               </div>
                             </td>
-                            <td data-label="Subtotal">
+                                                        <td data-label="Subtotal">
                               <p style={{ textAlign: "center", fontWeight: "500" }}>
-                                £{(Number(item.quantity) * Number(item.productPrice)).toFixed(2)}
+                                {formatPrice(item.productPrice * item.quantity)}
                               </p>
                             </td>
                             <td data-label="">
                               <MdOutlineClose
-                                onClick={() => dispatch(removeFromCart(item.productID))}
+                                onClick={() => handleRemoveFromCart(item.productID)}
                               />
                             </td>
                           </tr>
@@ -405,15 +427,15 @@ const ShoppingCart = () => {
                                       +
                                     </button>
                                   </div>
-                                  <span>£{item.productPrice}</span>
+                                  <span>{formatPrice(item.productPrice)}</span>
                                 </div>
                                 <div className="shoppingBagTableMobileItemsDetailTotal">
                                   <MdOutlineClose
                                     size={20}
-                                    onClick={() => dispatch(removeFromCart(item.productID))}
+                                    onClick={() => handleRemoveFromCart(item.productID)}
                                   />
                                   <p>
-                                    £{(Number(item.quantity) * Number(item.productPrice)).toFixed(2)}
+                                    {formatPrice(Number(item.quantity) * Number(item.productPrice))}
                                   </p>
                                 </div>
                               </div>
@@ -460,14 +482,14 @@ const ShoppingCart = () => {
                     <tbody>
                       <tr>
                         <th>Subtotal</th>
-                        <td>£{totalPrice.toFixed(2)}</td>
+                        <td>{formatPrice(totalPrice)}</td>
                       </tr>
                       <tr>
                         <th>Shipping</th>
                         <td>
                           <div className="shoppingBagTotalTableCheck">
-                            <p>£{(totalPrice === 0 ? 0 : SHIPPING_FEE).toFixed(2)}</p>
-                            <p>Ship to United Kingdom</p>
+                            <p>{formatPrice(totalPrice === 0 ? 0 : SHIPPING_FEE)}</p>
+                            <p>Ship to Bangladesh</p>
                             <p onClick={scrollToTop} style={{ cursor: "pointer" }}>
                               CHANGE ADDRESS
                             </p>
@@ -476,11 +498,11 @@ const ShoppingCart = () => {
                       </tr>
                       <tr>
                         <th>VAT</th>
-                        <td>£{(totalPrice === 0 ? 0 : VAT_FEE).toFixed(2)}</td>
+                        <td>{formatPrice(totalPrice === 0 ? 0 : VAT_FEE)}</td>
                       </tr>
                       <tr>
                         <th>Total</th>
-                        <td>£{(totalPrice === 0 ? 0 : grandTotal).toFixed(2)}</td>
+                        <td>{formatPrice(totalPrice === 0 ? 0 : grandTotal)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -625,7 +647,7 @@ const ShoppingCart = () => {
                                 <td>
                                   {items.productName} x {qty}
                                 </td>
-                                <td>£{(price * qty).toFixed(2)}</td>
+                                <td>{formatPrice(price * qty)}</td>
                               </tr>
                             );
                           })}
@@ -637,19 +659,19 @@ const ShoppingCart = () => {
                         <tbody>
                           <tr>
                             <th>Subtotal</th>
-                            <td>£{totalPrice.toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice)}</td>
                           </tr>
                           <tr>
                             <th>Shipping</th>
-                            <td>£{(totalPrice === 0 ? 0 : SHIPPING_FEE).toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice === 0 ? 0 : SHIPPING_FEE)}</td>
                           </tr>
                           <tr>
                             <th>VAT</th>
-                            <td>£{(totalPrice === 0 ? 0 : VAT_FEE).toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice === 0 ? 0 : VAT_FEE)}</td>
                           </tr>
                           <tr>
                             <th>Total</th>
-                            <td>£{(totalPrice === 0 ? 0 : grandTotal).toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice === 0 ? 0 : grandTotal)}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -728,7 +750,7 @@ const ShoppingCart = () => {
                     </div>
                     <div className="orderInfoItem">
                       <p>Total</p>
-                      <h4>£{totalPrice.toFixed(2)}</h4>
+                      <h4>{formatPrice(totalPrice)}</h4>
                     </div>
                     <div className="orderInfoItem">
                       <p>Payment Method</p>
@@ -751,7 +773,7 @@ const ShoppingCart = () => {
                               <td>
                                 {items.productName} x {items.quantity}
                               </td>
-                              <td>£{(Number(items.productPrice) * Number(items.quantity)).toFixed(2)}</td>
+                              <td>{formatPrice(Number(items.productPrice) * Number(items.quantity))}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -762,19 +784,19 @@ const ShoppingCart = () => {
                         <tbody>
                           <tr>
                             <th>Subtotal</th>
-                            <td>£{totalPrice.toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice)}</td>
                           </tr>
                           <tr>
                             <th>Shipping</th>
-                            <td>£{(totalPrice === 0 ? 0 : SHIPPING_FEE).toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice === 0 ? 0 : SHIPPING_FEE)}</td>
                           </tr>
                           <tr>
                             <th>VAT</th>
-                            <td>£{(totalPrice === 0 ? 0 : VAT_FEE).toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice === 0 ? 0 : VAT_FEE)}</td>
                           </tr>
                           <tr>
                             <th>Total</th>
-                            <td>£{(totalPrice === 0 ? 0 : grandTotal).toFixed(2)}</td>
+                            <td>{formatPrice(totalPrice === 0 ? 0 : grandTotal)}</td>
                           </tr>
                         </tbody>
                       </table>

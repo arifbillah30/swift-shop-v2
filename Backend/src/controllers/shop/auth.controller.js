@@ -137,6 +137,34 @@ class ShopAuthController {
     }
   });
 
+  /**
+   * GET /api/v1/auth/profile
+   * Get user profile information
+   */
+  static getProfile = asyncHandler(async (req, res) => {
+    // This endpoint requires authentication middleware
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return fail(res, 401, 'Authentication required');
+    }
+
+    try {
+      const user = await AuthService.getUserById(userId);
+      
+      if (!user) {
+        return fail(res, 404, 'User not found');
+      }
+
+      // Remove sensitive information
+      const { password, ...userProfile } = user;
+
+      return success(res, { user: userProfile }, null, 'Profile retrieved successfully');
+    } catch (error) {
+      throw error;
+    }
+  });
+
 }
 
 module.exports = ShopAuthController;

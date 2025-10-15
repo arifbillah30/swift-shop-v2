@@ -18,8 +18,7 @@ import Status from "components/table/Status";
 import OrderServices from "services/OrderServices";
 import Invoice from "components/invoice/Invoice";
 import Loading from "components/preloader/Loading";
-import logoDark from "assets/img/logo/logo-dark.svg";
-import logoLight from "assets/img/logo/logo-light.svg";
+import swiftShopLogo from "assets/img/logo/swift-shop-logo.png";
 import PageTitle from "components/Typography/PageTitle";
 import InvoiceForDownload from "components/invoice/InvoiceForDownload";
 import SettingServices from "services/SettingServices";
@@ -58,11 +57,7 @@ const OrderInvoice = () => {
               </h1>
               <div className="lg:text-right text-left">
                 <h2 className="lg:flex lg:justify-end text-lg font-serif font-semibold mt-4 lg:mt-0 lg:ml-0 md:mt-0">
-                  {mode === "dark" ? (
-                    <img src={logoLight} alt="dashtar" width="110" />
-                  ) : (
-                    <img src={logoDark} alt="dashtar" width="110" />
-                  )}
+                  <img src={swiftShopLogo} alt="Swift Shop" width="110" />
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                   {globalSetting?.address}

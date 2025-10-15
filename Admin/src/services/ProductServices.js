@@ -3,11 +3,9 @@
 import requests from "./httpService";
 
 const ProductServices = {
-  /**
-   * Admin list: GET /api/v1/admin/products
-   * Accepts page, limit, category, title (search), price (sort key)
-   * Returns { products, totalDoc, totalPages, error, message }
-   */
+
+  //Admin list: GET /api/v1/admin/products
+
   getAllProducts: async ({ page, limit, category, title, price }) => {
     const searchCategory = category ?? "";
     const searchTitle = title ?? "";
@@ -145,46 +143,63 @@ const ProductServices = {
    * Admin update: PUT /api/v1/admin/products/:id
    * Send FormData aligned with backend schema
    */
-  updateProduct: async (id, body) => {
-    try {
-      const formData = new FormData();
+  // Admin/src/services/ProductServices.js
 
-      // Basic product info
-      const title = body.title?.en || body.title || "Untitled Product";
-      formData.append("name", title);
-      formData.append("description", body.description?.en || body.description || "");
-      formData.append("price", body.prices?.price ?? body.price ?? 0);
-      formData.append("discount_price", body.discount_price ?? 0);
+updateProduct: async (id, body) => {
+  try {
+    const formData = new FormData();
 
-      // Category handling
-      let categoryId = null;
-      if (body.category?._id) categoryId = body.category._id;
-      else if (body.category) categoryId = body.category;
-      else if (Array.isArray(body.categories) && body.categories.length > 0) {
-        categoryId = body.categories[0]._id ?? body.categories[0];
-      }
-      if (categoryId != null) formData.append("category_id", categoryId);
+    // Basic product info
+    const title = body.title?.en || body.title || "Untitled Product";
+    formData.append("name", title);
+    formData.append("description", body.description?.en || body.description || "");
+    formData.append("price", body.prices?.price ?? body.price ?? 0);
+    formData.append("discount_price", body.discount_price ?? 0);
 
-      // Status/featured/sku
-      formData.append("status", body.show ? "active" : "draft");
-      formData.append("featured", body.featured ? "true" : "false");
-      formData.append("sku", body.sku || "");
-
-      // Tags (backend expects JSON string or array -> we send JSON string)
-      if (body.tag != null) {
-        const tags = Array.isArray(body.tag) ? body.tag : [body.tag];
-        formData.append("tags", JSON.stringify(tags));
-      }
-
-      const result = await requests.put(`/api/v1/admin/products/${id}`, formData);
-      
-      // Handle new API response format
-      return result.success ? result.data : result;
-    } catch (error) {
-      console.error("Error updating product:", error);
-      throw error;
+    // Category handling
+    let categoryId = null;
+    if (body.category?._id) categoryId = body.category._id;
+    else if (body.category) categoryId = body.category;
+    else if (Array.isArray(body.categories) && body.categories.length > 0) {
+      categoryId = body.categories[0]._id ?? body.categories[0];
     }
-  },
+    if (categoryId != null) formData.append("category_id", categoryId);
+
+    // Status / featured / sku
+    formData.append("status", body.show ? "active" : "draft");
+    formData.append("featured", body.featured ? "true" : "false");
+    formData.append("sku", body.sku || "");
+
+    // Tags (JSON string)
+    if (body.tag != null) {
+      const tags = Array.isArray(body.tag) ? body.tag : [body.tag];
+      formData.append("tags", JSON.stringify(tags));
+    }
+
+    // 🔧 IMPORTANT: send quantity when updating
+    // Accept quantity from body.quantity OR body.stock OR body.total_stock
+    const qtyRaw = body.quantity ?? body.stock ?? body.total_stock;
+    if (qtyRaw !== undefined && qtyRaw !== null && String(qtyRaw).trim() !== "") {
+      formData.append("quantity", Number(qtyRaw));
+      // Also append as 'stock' for backward compatibility
+      formData.append("stock", Number(qtyRaw));
+      formData.append("total_stock", Number(qtyRaw));
+    }
+
+    // (Optional) if you allow editing variants here, send them too
+    if (Array.isArray(body.variants) && body.variants.length > 0) {
+      formData.append("variants", JSON.stringify(body.variants));
+    }
+
+    const result = await requests.put(`/api/v1/admin/products/${id}`, formData);
+
+    return result?.success ? result.data : result;
+  } catch (error) {
+    console.error("Error updating product:", error);
+    throw error;
+  }
+},
+
 
   /**
    * Admin create: POST /api/v1/admin/products

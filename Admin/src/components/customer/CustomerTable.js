@@ -29,7 +29,7 @@ const CustomerTable = ({ customers }) => {
             <TableCell>
               <span className="font-semibold uppercase text-xs">
                 {" "}
-                {user?._id?.substring(20, 24)}
+                {String(user?._id || user?.id || '').padStart(4, '0').slice(-4)}
               </span>
             </TableCell>
             <TableCell>

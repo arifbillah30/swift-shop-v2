@@ -2,17 +2,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './account-orders.css';
-
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000';
+import OrderService from '../../services/OrderService';
 
 const AccountOrders = () => {
-  const [orders, setOrders] = useState([]);              // normalized list from /admin/orders
-  const [selectedOrder, setSelectedOrder] = useState(null); // full detail { order, items, addresses, ... }
+  const [orders, setOrders] = useState([]);              // user orders from /api/v1/orders
+  const [selectedOrder, setSelectedOrder] = useState(null); // full order detail
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [listError, setListError] = useState('');
   const [detailError, setDetailError] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
   // read user (original source + safe fallback)
   const user = useMemo(() => {
@@ -28,7 +28,7 @@ const AccountOrders = () => {
   const fmtMoney = (n, currency = 'BDT') => `${currency} ${Number(n || 0).toFixed(2)}`;
   const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '-');
 
-  // Load orders list (admin) and filter by current user email
+  // Load orders list using OrderService
   const loadOrders = async () => {
     if (!user?.email) {
       setOrders([]);
@@ -38,40 +38,27 @@ const AccountOrders = () => {
     setLoading(true);
     setListError('');
     try {
-      const res = await fetch(`${API_BASE}/admin/orders?limit=200&offset=0`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success || !Array.isArray(data.data)) {
-        setListError(data?.message || 'Failed to load orders');
-        setOrders([]);
-      } else {
-        const mine = data.data.filter(o => o.user_email === user.email);
-        setOrders(mine);
-      }
-    } catch (e) {
-      console.error(e);
-      setListError('Failed to load orders');
+      const ordersData = await OrderService.getUserOrders();
+      setOrders(ordersData || []);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      setListError(error.message || 'Failed to load orders');
       setOrders([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load order details for modal
+  // Load order details for modal using OrderService
   const loadOrderDetail = async (orderId) => {
     setDetailLoading(true);
     setDetailError('');
     try {
-      const res = await fetch(`${API_BASE}/admin/orders/${orderId}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success || !data?.data?.order) {
-        setDetailError(data?.message || 'Failed to load order details');
-        setSelectedOrder(null);
-      } else {
-        setSelectedOrder(data.data);
-      }
-    } catch (e) {
-      console.error(e);
-      setDetailError('Failed to load order details');
+      const orderDetail = await OrderService.getOrder(orderId);
+      setSelectedOrder(orderDetail);
+    } catch (error) {
+      console.error('Failed to load order details:', error);
+      setDetailError(error.message || 'Failed to load order details');
       setSelectedOrder(null);
     } finally {
       setDetailLoading(false);
@@ -100,11 +87,55 @@ const AccountOrders = () => {
     setDetailError('');
   };
 
+  // Handle order cancellation
+  const handleCancelOrder = async (orderId, orderNumber) => {
+    if (!window.confirm(`Are you sure you want to cancel order #${orderNumber}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setCancellingOrderId(orderId);
+    try {
+      await OrderService.cancelOrder(orderId);
+      
+      // Update the order in the local state
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId 
+            ? { ...order, status: 'cancelled' }
+            : order
+        )
+      );
+
+      // If the cancelled order is currently viewed in modal, update it
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(prev => ({ ...prev, status: 'cancelled' }));
+      }
+
+      alert(`Order #${orderNumber} has been cancelled successfully.`);
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+      alert(error.message || 'Failed to cancel order. Please try again.');
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  // Check if an order can be cancelled
+  const canCancelOrder = (order) => {
+    return ['pending', 'confirmed', 'processing'].includes(order.status?.toLowerCase());
+  };
+
+  // Get status badge class
+  const getStatusBadgeClass = (status) => {
+    const statusLower = status?.toLowerCase() || '';
+    return `status-badge status-${statusLower}`;
+  };
+
   return (
     <main>
       <div className="mb-4 pb-4"></div>
       <section className="my-account container">
-        <h2 className="page-title">Orders</h2>
+        <h2 className="page-title">My Orders</h2>
         <div className="row">
           <div className="col-lg-3">
             <ul className="account-nav">
@@ -119,7 +150,28 @@ const AccountOrders = () => {
           <div className="col-lg-9">
             <div className="page-content my-account__orders-list">
               {loading ? (
-                <table className="orders-table"><tbody><tr><td>Loading…</td></tr></tbody></table>
+                <div className="loading-state">
+                  <div className="loading-spinner"></div>
+                  <p>Loading your orders...</p>
+                </div>
+              ) : listError ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">⚠️</div>
+                  <h3>Error Loading Orders</h3>
+                  <p>{listError}</p>
+                  <button className="btn-shop-now" onClick={loadOrders}>
+                    Try Again
+                  </button>
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📦</div>
+                  <h3>No Orders Yet</h3>
+                  <p>You haven't placed any orders yet. Start shopping to see your orders here!</p>
+                  <Link to="/shop" className="btn-shop-now">
+                    Start Shopping
+                  </Link>
+                </div>
               ) : (
                 <table className="orders-table">
                   <thead>
@@ -132,25 +184,43 @@ const AccountOrders = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {listError ? (
-                      <tr><td colSpan="5" style={{ textAlign: 'center' }}>{listError}</td></tr>
-                    ) : orders.length === 0 ? (
-                      <tr><td colSpan="5" style={{ textAlign: 'center' }}>No orders found.</td></tr>
-                    ) : (
-                      orders.map((o, idx) => (
-                        <tr key={idx}>
-                          <td>#{o.order_number || o.id}</td>
-                          <td>{fmtDate(o.created_at || o.placed_at)}</td>
-                          <td style={{ textTransform: 'capitalize' }}>{o.status}</td>
-                          <td>{fmtMoney(o.grand_total, o.currency)}</td>
-                          <td>
-                            <button className="btn-primary" onClick={() => handleViewOrder(o)}>
-                              VIEW
+                    {orders.map((order, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <span className="order-number">
+                            #{order.order_number || order.id}
+                          </span>
+                        </td>
+                        <td>{fmtDate(order.created_at || order.placed_at)}</td>
+                        <td>
+                          <span className={getStatusBadgeClass(order.status)}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>{fmtMoney(order.grand_total, order.currency)}</strong>
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button 
+                              className="btn-view" 
+                              onClick={() => handleViewOrder(order)}
+                            >
+                              View
                             </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                            {canCancelOrder(order) && (
+                              <button 
+                                className="btn-cancel" 
+                                onClick={() => handleCancelOrder(order.id, order.order_number || order.id)}
+                                disabled={cancellingOrderId === order.id}
+                              >
+                                {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               )}
@@ -159,37 +229,158 @@ const AccountOrders = () => {
         </div>
       </section>
 
-      {/* Modal (keeps your design) */}
+      {/* Enhanced Modal */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <span className="close-button" onClick={handleCloseModal}>&times;</span>
+            <button className="close-button" onClick={handleCloseModal}>
+              ×
+            </button>
 
             {detailLoading ? (
-              <p>Loading…</p>
+              <div className="loading-state">
+                <div className="loading-spinner"></div>
+                <p>Loading order details...</p>
+              </div>
             ) : detailError ? (
-              <p className="text-danger">{detailError}</p>
+              <div className="modal-body">
+                <div className="empty-state">
+                  <div className="empty-state-icon">⚠️</div>
+                  <h3>Error Loading Order</h3>
+                  <p>{detailError}</p>
+                </div>
+              </div>
             ) : selectedOrder ? (
               <>
-                <h3>Order Details</h3>
-                <p><strong>Order ID:</strong> #{selectedOrder.order.order_number || selectedOrder.order.id}</p>
-                <p><strong>Date:</strong> {fmtDate(selectedOrder.order.created_at || selectedOrder.order.placed_at)}</p>
-                <p><strong>Total:</strong> {fmtMoney(selectedOrder.order.grand_total, selectedOrder.order.currency)}</p>
-                {selectedOrder.order.payment_method && (
-                  <p><strong>Payment Method:</strong> {selectedOrder.order.payment_method}</p>
-                )}
-                <h4>Items:</h4>
-                <ul>
-                  {(selectedOrder.items || []).map((it) => (
-                    <li key={it.id}>
-                      <strong>{it.product_name /* alias from backend is product_name */}</strong> - {fmtMoney(it.unit_price, selectedOrder.order.currency)} x {it.quantity}
-                    </li>
-                  ))}
-                </ul>
-                <button className="btn btn-primary" onClick={handleCloseModal}>Close</button>
+                <div className="modal-header">
+                  <h3>Order Details</h3>
+                </div>
+                
+                <div className="modal-body">
+                  <div className="order-info-grid">
+                    <div className="order-info-item">
+                      <div className="order-info-label">Order ID</div>
+                      <div className="order-info-value">#{selectedOrder.order_number || selectedOrder.id}</div>
+                    </div>
+                    <div className="order-info-item">
+                      <div className="order-info-label">Date</div>
+                      <div className="order-info-value">{fmtDate(selectedOrder.created_at || selectedOrder.placed_at)}</div>
+                    </div>
+                    <div className="order-info-item">
+                      <div className="order-info-label">Status</div>
+                      <div className="order-info-value">
+                        <span className={getStatusBadgeClass(selectedOrder.status)}>
+                          {selectedOrder.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="order-info-item">
+                      <div className="order-info-label">Payment Status</div>
+                      <div className="order-info-value">{selectedOrder.payment_status}</div>
+                    </div>
+                    {selectedOrder.payment_method && (
+                      <div className="order-info-item">
+                        <div className="order-info-label">Payment Method</div>
+                        <div className="order-info-value">{selectedOrder.payment_method}</div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {selectedOrder.shipping_address && (
+                    <div className="address-section">
+                      <h4>Shipping Address</h4>
+                      <p>
+                        {selectedOrder.shipping_address.full_name}<br/>
+                        {selectedOrder.shipping_address.line1}<br/>
+                        {selectedOrder.shipping_address.line2 && <>{selectedOrder.shipping_address.line2}<br/></>}
+                        {selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.state} {selectedOrder.shipping_address.postal_code}<br/>
+                        {selectedOrder.shipping_address.country_code}
+                        {selectedOrder.shipping_address.phone && <><br/>Phone: {selectedOrder.shipping_address.phone}</>}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="order-items">
+                    <h4>Order Items</h4>
+                    {(selectedOrder.items || []).map((item) => (
+                      <div key={item.id} className="order-item">
+                        <div className="order-item-details">
+                          <div className="order-item-name">
+                            {item.product_name_snapshot}
+                            {item.current_product_name && item.current_product_name !== item.product_name_snapshot && (
+                              <span> (Current: {item.current_product_name})</span>
+                            )}
+                          </div>
+                          {(item.variant_sku || item.color || item.size) && (
+                            <div className="order-item-variant">
+                              {item.variant_sku && <span>SKU: {item.variant_sku}</span>}
+                              {item.color && <span> • Color: {item.color}</span>}
+                              {item.size && <span> • Size: {item.size}</span>}
+                            </div>
+                          )}
+                          <div className="order-item-price">
+                            {fmtMoney(item.unit_price, selectedOrder.currency)} × {item.quantity}
+                          </div>
+                        </div>
+                        <div className="order-item-total">
+                          <strong>{fmtMoney(item.unit_price * item.quantity, selectedOrder.currency)}</strong>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="order-totals">
+                    <div className="total-row">
+                      <span>Subtotal:</span>
+                      <span>{fmtMoney(selectedOrder.subtotal, selectedOrder.currency)}</span>
+                    </div>
+                    {selectedOrder.tax_total > 0 && (
+                      <div className="total-row">
+                        <span>Tax:</span>
+                        <span>{fmtMoney(selectedOrder.tax_total, selectedOrder.currency)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.shipping_total > 0 && (
+                      <div className="total-row">
+                        <span>Shipping:</span>
+                        <span>{fmtMoney(selectedOrder.shipping_total, selectedOrder.currency)}</span>
+                      </div>
+                    )}
+                    {selectedOrder.discount_total > 0 && (
+                      <div className="total-row">
+                        <span>Discount:</span>
+                        <span>-{fmtMoney(selectedOrder.discount_total, selectedOrder.currency)}</span>
+                      </div>
+                    )}
+                    <div className="total-row">
+                      <span>Grand Total:</span>
+                      <span>{fmtMoney(selectedOrder.grand_total, selectedOrder.currency)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="modal-actions">
+                    <button className="btn-modal btn-modal-primary" onClick={handleCloseModal}>
+                      Close
+                    </button>
+                    {canCancelOrder(selectedOrder) && (
+                      <button 
+                        className="btn-modal btn-modal-danger" 
+                        onClick={() => {
+                          handleCancelOrder(selectedOrder.id, selectedOrder.order_number || selectedOrder.id);
+                        }}
+                        disabled={cancellingOrderId === selectedOrder.id}
+                      >
+                        {cancellingOrderId === selectedOrder.id ? 'Cancelling...' : 'Cancel Order'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </>
             ) : (
-              <p>Loading…</p>
+              <div className="loading-state">
+                <div className="loading-spinner"></div>
+                <p>Loading...</p>
+              </div>
             )}
           </div>
         </div>

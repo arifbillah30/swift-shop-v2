@@ -159,9 +159,9 @@ const Navbar = () => {
               </div>
               <div className="mobile-menuFooterCurrency">
                 <p>Currency</p>
-                <select name="currency" id="currency" defaultValue="GBP">
-                  <option value="USD">$ USD</option>
+                <select name="currency" id="currency" defaultValue="BDT">
                   <option value="BDT">৳ BDT</option>
+                  <option value="USD">$ USD</option>
                   <option value="EUR">€ EUR</option>
                   <option value="GBP">£ GBP</option>
                 </select>

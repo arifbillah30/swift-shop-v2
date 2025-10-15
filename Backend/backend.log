@@ -1,0 +1,5 @@
+[dotenv@17.2.3] injecting env (6) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+🚀 Swift Shop Backend v2.0 is running on port 4000
+📊 Environment: development
+🗄️  Database: swiftshop
+✅ Connected to MySQL database.

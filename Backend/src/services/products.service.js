@@ -116,7 +116,12 @@ class ProductsService {
         COALESCE(SUM(i.quantity), 0) AS total_stock,
 
         AVG(r.rating) AS avg_rating,
-        COUNT(DISTINCT r.id) AS review_count
+        COUNT(DISTINCT r.id) AS review_count,
+        
+        (SELECT id FROM product_variants
+           WHERE product_id = p.id AND is_active = 1
+           ORDER BY price ASC
+           LIMIT 1) AS default_variant_id
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN brands b ON p.brand_id = b.id
@@ -253,6 +258,28 @@ class ProductsService {
     );
 
     return { ...product, variants, images };
+  }
+
+  /**
+   * Create a new product with inventory handling
+   */
+  static async createProductWithInventory(productData, quantity = 0) {
+    await db.query('START TRANSACTION');
+    try {
+      // Create the product
+      const { productId, slug } = await this.createProduct(productData);
+
+      // Create default variant with inventory if no specific variants will be added
+      if (quantity >= 0) {
+        await this.createDefaultVariant(productId, productData.price || 0, quantity);
+      }
+
+      await db.query('COMMIT');
+      return { productId, slug };
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
   }
 
   /**
@@ -421,16 +448,55 @@ class ProductsService {
   static async deleteProduct(id) {
     await db.query('START TRANSACTION');
     try {
-      await db.query(`DELETE FROM product_images WHERE product_id = ?`, [id]);
+      // First, remove references from related tables that don't have CASCADE DELETE
+      // Delete from cart_items that reference product variants
       await db.query(
-        `
-        DELETE i FROM inventory i
-        INNER JOIN product_variants pv ON i.variant_id = pv.id
-        WHERE pv.product_id = ?
-        `,
+        `DELETE ci FROM cart_items ci 
+         INNER JOIN product_variants pv ON ci.variant_id = pv.id 
+         WHERE pv.product_id = ?`,
         [id]
       );
+
+      // Delete from order_items that reference this product or its variants
+      await db.query(`DELETE FROM order_items WHERE product_id = ?`, [id]);
+      await db.query(
+        `DELETE oi FROM order_items oi 
+         INNER JOIN product_variants pv ON oi.variant_id = pv.id 
+         WHERE pv.product_id = ?`,
+        [id]
+      );
+
+      // Delete from wishlist_items that reference this product or its variants
+      await db.query(
+        `DELETE wi FROM wishlist_items wi 
+         INNER JOIN wishlists w ON wi.wishlist_id = w.id 
+         WHERE wi.product_id = ?`,
+        [id]
+      );
+      await db.query(
+        `DELETE wi FROM wishlist_items wi 
+         INNER JOIN product_variants pv ON wi.variant_id = pv.id 
+         WHERE pv.product_id = ?`,
+        [id]
+      );
+
+      // Delete related product data (these have CASCADE or can be safely deleted)
+      await db.query(`DELETE FROM product_images WHERE product_id = ?`, [id]);
+      await db.query(`DELETE FROM product_attributes WHERE product_id = ?`, [id]);
+      await db.query(`DELETE FROM reviews WHERE product_id = ?`, [id]);
+      
+      // Delete inventory entries for product variants
+      await db.query(
+        `DELETE i FROM inventory i
+         INNER JOIN product_variants pv ON i.variant_id = pv.id
+         WHERE pv.product_id = ?`,
+        [id]
+      );
+
+      // Delete product variants
       await db.query(`DELETE FROM product_variants WHERE product_id = ?`, [id]);
+
+      // Finally, delete the product itself
       const [result] = await db.query(`DELETE FROM products WHERE id = ?`, [id]);
 
       if (!result.affectedRows) {
@@ -458,19 +524,55 @@ class ProductsService {
     try {
       const placeholders = ids.map(() => '?').join(',');
       
-      // Delete related data first
-      await db.query(`DELETE FROM product_images WHERE product_id IN (${placeholders})`, ids);
+      // First, remove references from related tables that don't have CASCADE DELETE
+      // Delete from cart_items that reference product variants
       await db.query(
-        `
-        DELETE i FROM inventory i
-        INNER JOIN product_variants pv ON i.variant_id = pv.id
-        WHERE pv.product_id IN (${placeholders})
-        `,
+        `DELETE ci FROM cart_items ci 
+         INNER JOIN product_variants pv ON ci.variant_id = pv.id 
+         WHERE pv.product_id IN (${placeholders})`,
         ids
       );
+
+      // Delete from order_items that reference these products or their variants
+      await db.query(`DELETE FROM order_items WHERE product_id IN (${placeholders})`, ids);
+      await db.query(
+        `DELETE oi FROM order_items oi 
+         INNER JOIN product_variants pv ON oi.variant_id = pv.id 
+         WHERE pv.product_id IN (${placeholders})`,
+        ids
+      );
+
+      // Delete from wishlist_items that reference these products or their variants
+      await db.query(
+        `DELETE wi FROM wishlist_items wi 
+         INNER JOIN wishlists w ON wi.wishlist_id = w.id 
+         WHERE wi.product_id IN (${placeholders})`,
+        ids
+      );
+      await db.query(
+        `DELETE wi FROM wishlist_items wi 
+         INNER JOIN product_variants pv ON wi.variant_id = pv.id 
+         WHERE pv.product_id IN (${placeholders})`,
+        ids
+      );
+
+      // Delete related product data (these have CASCADE or can be safely deleted)
+      await db.query(`DELETE FROM product_images WHERE product_id IN (${placeholders})`, ids);
+      await db.query(`DELETE FROM product_attributes WHERE product_id IN (${placeholders})`, ids);
+      await db.query(`DELETE FROM reviews WHERE product_id IN (${placeholders})`, ids);
+      
+      // Delete inventory entries for product variants
+      await db.query(
+        `DELETE i FROM inventory i
+         INNER JOIN product_variants pv ON i.variant_id = pv.id
+         WHERE pv.product_id IN (${placeholders})`,
+        ids
+      );
+
+      // Delete product variants
       await db.query(`DELETE FROM product_variants WHERE product_id IN (${placeholders})`, ids);
       
-      // Delete products
+      // Finally, delete the products
       const [result] = await db.query(`DELETE FROM products WHERE id IN (${placeholders})`, ids);
 
       await db.query('COMMIT');
@@ -515,18 +617,112 @@ class ProductsService {
   static async addProductVariants(productId, variants) {
     if (!Array.isArray(variants) || !variants.length) return;
 
-    const queries = variants.map((v) =>
-      db.query(
+    await db.query('START TRANSACTION');
+    try {
+      for (const v of variants) {
+        const [result] = await db.query(
+          `
+          INSERT INTO product_variants (
+            product_id, sku, color, size, material, price, compare_at_price, is_active
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [productId, v.sku, v.color, v.size, v.material, v.price, v.compare_at_price || null, 1]
+        );
+
+        // Add inventory entry for the variant if quantity is provided
+        if (v.quantity !== undefined && v.quantity >= 0) {
+          await db.query(
+            `INSERT INTO inventory (variant_id, quantity) VALUES (?, ?)`,
+            [result.insertId, v.quantity]
+          );
+        }
+      }
+      await db.query('COMMIT');
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /**
+   * Create default variant for a product (when no variants are provided)
+   */
+  static async createDefaultVariant(productId, price, quantity = 0) {
+    await db.query('START TRANSACTION');
+    try {
+      const [result] = await db.query(
         `
         INSERT INTO product_variants (
-          product_id, sku, color, size, material, price, compare_at_price, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          product_id, sku, price, is_active
+        ) VALUES (?, ?, ?, ?)
         `,
-        [productId, v.sku, v.color, v.size, v.material, v.price, v.compare_at_price || null, 1]
-      )
-    );
+        [productId, `DEFAULT-${productId}`, price, 1]
+      );
 
-    await Promise.all(queries);
+      // Add inventory entry for the default variant
+      await db.query(
+        `INSERT INTO inventory (variant_id, quantity) VALUES (?, ?)`,
+        [result.insertId, quantity]
+      );
+
+      await db.query('COMMIT');
+      return result.insertId;
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /**
+   * Update inventory for a variant
+   */
+  static async updateInventory(variantId, quantity) {
+    const [result] = await db.query(
+      `
+      INSERT INTO inventory (variant_id, quantity) VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)
+      `,
+      [variantId, quantity]
+    );
+    return result.affectedRows > 0;
+  }
+
+  /**
+   * Update product with inventory handling
+   */
+  static async updateProductWithInventory(id, productData, quantity = null) {
+    await db.query('START TRANSACTION');
+    try {
+      // Update the product
+      const updated = await this.updateProduct(id, productData);
+      if (!updated) {
+        await db.query('ROLLBACK');
+        return false;
+      }
+
+      // Handle inventory if quantity is provided
+      if (quantity !== null && quantity >= 0) {
+        // Check if product has variants
+        const [variants] = await db.query(
+          `SELECT id FROM product_variants WHERE product_id = ? AND is_active = 1 LIMIT 1`,
+          [id]
+        );
+
+        if (variants.length > 0) {
+          // Update inventory for the first active variant
+          await this.updateInventory(variants[0].id, quantity);
+        } else {
+          // Create default variant with inventory
+          await this.createDefaultVariant(id, productData.price || 0, quantity);
+        }
+      }
+
+      await db.query('COMMIT');
+      return true;
+    } catch (error) {
+      await db.query('ROLLBACK');
+      throw error;
+    }
   }
 }
 

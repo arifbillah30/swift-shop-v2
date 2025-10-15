@@ -12,6 +12,7 @@ import myTheme from "./assets/theme/myTheme";
 import { AdminProvider } from "./context/AdminContext";
 import { SidebarProvider } from "./context/SidebarContext";
 import ThemeSuspense from "./components/theme/ThemeSuspense";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 import { Provider } from "react-redux";
 import store from "./redux/Store";
 import "./i18n";
@@ -23,18 +24,19 @@ import "./i18n";
 // }
 
 ReactDOM.render(
-  <AdminProvider>
-    <SidebarProvider>
-      <Provider store={store}>
-        <Suspense fallback={<ThemeSuspense />}>
-          <Windmill usePreferences theme={myTheme}>
-            <App />
-          </Windmill>
-        </Suspense>
-      </Provider>
-    </SidebarProvider>
-  </AdminProvider>,
-
+  <ErrorBoundary>
+    <AdminProvider>
+      <SidebarProvider>
+        <Provider store={store}>
+          <Suspense fallback={<ThemeSuspense />}>
+            <Windmill usePreferences theme={myTheme}>
+              <App />
+            </Windmill>
+          </Suspense>
+        </Provider>
+      </SidebarProvider>
+    </AdminProvider>
+  </ErrorBoundary>,
   document.getElementById("root")
 );
 // If you want your app to work offline and load faster, you can change

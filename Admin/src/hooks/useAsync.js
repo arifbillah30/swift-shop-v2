@@ -1,6 +1,6 @@
 import axios from "axios";
 // import Cookies from 'js-cookie';
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState, useRef } from "react";
 import { SidebarContext } from "context/SidebarContext";
 
 const useAsync = (asyncFunction) => {
@@ -8,6 +8,8 @@ const useAsync = (asyncFunction) => {
   const [error, setError] = useState("");
   // const [errCode, setErrCode] = useState('');
   const [loading, setLoading] = useState(true);
+  const isMountedRef = useRef(true);
+  
   const {
     isUpdate,
     setIsUpdate,
@@ -26,23 +28,23 @@ const useAsync = (asyncFunction) => {
   } = useContext(SidebarContext);
 
   useEffect(() => {
-    let unmounted = false;
+    isMountedRef.current = true;
     let source = axios.CancelToken.source();
+    
     (async () => {
       try {
+        setLoading(true);
         const res = await asyncFunction({ cancelToken: source.token });
-        if (!unmounted) {
+        if (isMountedRef.current) {
           setData(res);
           setError("");
           setLoading(false);
         }
       } catch (err) {
-        if (!unmounted) {
-          setError(err.message);
+        if (isMountedRef.current) {
           if (axios.isCancel(err)) {
-            setError(err.message);
-            setLoading(false);
-            setData([]);
+            // Request was cancelled, don't update state
+            return;
           } else {
             setError(err.message);
             setLoading(false);
@@ -52,13 +54,11 @@ const useAsync = (asyncFunction) => {
       }
     })();
 
-  
-
     setIsUpdate(false);
 
     return () => {
-      unmounted = true;
-      source.cancel("Cancelled in cleanup");
+      isMountedRef.current = false;
+      source.cancel("Component unmounted - request cancelled");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -77,6 +77,12 @@ const useAsync = (asyncFunction) => {
     endDate,
   ]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   return {
     data,

@@ -34,7 +34,13 @@ const DropdownMenu = () => {
         <div className="sub-menu">
           <ul className="list-unstyled">
             <li className="sub-menu__item">
+              <Link to="/account-dashboard">Dashboard</Link>
+            </li>
+            <li className="sub-menu__item">
               <Link to="/account-details">My Account</Link>
+            </li>
+            <li className="sub-menu__item">
+              <Link to="/account-orders">Orders</Link>
             </li>
             <li className="sub-menu__item">
               <Link to="/store_location">Store Locator</Link>

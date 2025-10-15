@@ -1,6 +1,7 @@
 // Frontend/src/Components/Dashboard/account-address.jsx
 
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../Context/authContext';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000';
@@ -189,12 +190,12 @@ const response = await fetch(
         <div className="row">
           <div className="col-lg-3">
             <ul className="account-nav">
-              <li><a href="/account-dashboard" className="menu-link menu-link_us-s">Dashboard</a></li>
-              <li><a href="/account-orders" className="menu-link menu-link_us-s">Orders</a></li>
-              <li><a href="/account-address" className="menu-link menu-link_us-s menu-link_active">Addresses</a></li>
-              <li><a href="/account-details" className="menu-link menu-link_us-s">Account Details</a></li>
-              <li><a href="/account-wishlist" className="menu-link menu-link_us-s">Wishlist</a></li>
-              <li><a href="/logout" className="menu-link menu-link_us-s">Logout</a></li>
+              <li><Link to="/account-dashboard" className="menu-link menu-link_us-s">Dashboard</Link></li>
+              <li><Link to="/account-orders" className="menu-link menu-link_us-s">Orders</Link></li>
+              <li><Link to="/account-address" className="menu-link menu-link_us-s menu-link_active">Addresses</Link></li>
+              <li><Link to="/account-details" className="menu-link menu-link_us-s">Account Details</Link></li>
+              <li><Link to="/account-wishlist" className="menu-link menu-link_us-s">Wishlist</Link></li>
+              <li><Link to="/logout" className="menu-link menu-link_us-s">Logout</Link></li>
             </ul>
           </div>
 

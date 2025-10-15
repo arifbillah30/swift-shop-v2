@@ -40,7 +40,7 @@ class ShopOrdersController {
       return validationError(res, { id: 'Valid order ID is required' });
     }
 
-    const order = await OrdersService.getOrderById(id);
+    const order = await OrdersService.getOrderWithDetails(id);
     if (!order) {
       return notFound(res, 'Order');
     }
@@ -69,7 +69,12 @@ class ShopOrdersController {
       shipping_address,
       billing_address,
       payment_method,
-      notes
+      currency = 'BDT',
+      subtotal = 0,
+      discount_total = 0,
+      tax_total = 0,
+      shipping_total = 0,
+      grand_total = 0
     } = req.body;
 
     // Basic validation
@@ -86,63 +91,75 @@ class ShopOrdersController {
     }
 
     try {
-      // Calculate totals
-      let subtotal = 0;
+      // Validate items and calculate totals if not provided
+      let calculatedSubtotal = subtotal;
       const validatedItems = [];
 
       for (const item of items) {
-        if (!item.product_id || !item.quantity || item.quantity <= 0) {
-          return validationError(res, { items: 'Each item must have valid product_id and quantity' });
+        if (!item.product_name_snapshot && !item.product_id) {
+          return validationError(res, { items: 'Each item must have product_name_snapshot or product_id' });
         }
 
-        // Get product details to validate and calculate price
-        const product = await ProductsService.getProductById(item.product_id);
-        if (!product || product.status !== 'active') {
-          return validationError(res, { items: `Product ${item.product_id} is not available` });
+        if (!item.quantity || item.quantity <= 0) {
+          return validationError(res, { items: 'Each item must have valid quantity' });
         }
 
-        const itemPrice = item.price || product.price;
-        const itemTotal = itemPrice * item.quantity;
-        subtotal += itemTotal;
+        if (!item.unit_price || item.unit_price <= 0) {
+          return validationError(res, { items: 'Each item must have valid unit_price' });
+        }
 
+        const itemTotal = Number(item.unit_price) * Number(item.quantity);
+        
         validatedItems.push({
-          ...item,
-          price: itemPrice,
-          total: itemTotal,
-          product_name: product.name
+          product_id: item.product_id || null,
+          variant_id: item.variant_id || null,
+          product_name_snapshot: item.product_name_snapshot || `Product ${item.product_id}`,
+          unit_price: Number(item.unit_price),
+          quantity: Number(item.quantity),
+          front_img_snapshot: item.front_img_snapshot || null,
+          back_img_snapshot: item.back_img_snapshot || null,
+          reviews_text_snapshot: item.reviews_text_snapshot || null
         });
-      }
 
-      const tax = subtotal * 0.1; // 10% tax - should be configurable
-      const shipping = 10; // Flat shipping - should be calculated
-      const total = subtotal + tax + shipping;
+        if (subtotal === 0) {
+          calculatedSubtotal += itemTotal;
+        }
+      }
 
       // Create order data
       const orderData = {
         user_id: userId,
         items: validatedItems,
-        subtotal,
-        tax,
-        shipping,
-        total,
-        shipping_address: JSON.stringify(shipping_address),
-        billing_address: JSON.stringify(billing_address || shipping_address),
+        subtotal: Number(calculatedSubtotal),
+        discount_total: Number(discount_total),
+        tax_total: Number(tax_total),
+        shipping_total: Number(shipping_total),
+        grand_total: Number(grand_total) || (calculatedSubtotal + Number(tax_total) + Number(shipping_total) - Number(discount_total)),
+        shipping_address,
+        billing_address: billing_address || shipping_address,
         payment_method,
-        notes: notes || null,
-        status: 'pending'
+        currency,
+        status: 'pending',
+        payment_status: 'unpaid',
+        fulfillment_status: 'unfulfilled'
       };
 
-      // Note: This would need to be implemented in OrdersService
-      // const orderId = await OrdersService.createOrder(orderData);
+      const result = await OrdersService.createOrder(orderData);
 
-      // For now, return a placeholder response
       return success(res, {
-        message: 'Order creation logic needs to be implemented in OrdersService',
-        orderData
-      }, null, 'Order processing initiated');
+        order_id: result.orderId,
+        order_number: result.orderNumber,
+        status: 'pending',
+        grand_total: orderData.grand_total
+      }, null, 'Order created successfully');
 
     } catch (error) {
       console.error('Order creation error:', error);
+      
+      if (error.message.includes('foreign key') || error.message.includes('constraint')) {
+        return validationError(res, { items: 'Invalid product or variant referenced in order items' });
+      }
+      
       return fail(res, 500, 'Failed to create order');
     }
   });
@@ -205,15 +222,13 @@ class ShopOrdersController {
 
     if (!OrdersService.isValidStatus(status)) {
       return validationError(res, { 
-        status: 'Invalid status. Must be one of: pending, processing, shipped, delivered, completed, cancelled' 
+        status: 'Invalid status. Must be one of: pending, confirmed, processing, shipped, delivered, cancelled, refunded' 
       });
     }
 
-    // This would need a new method in OrdersService
-    // const orders = await OrdersService.getUserOrdersByStatus(userId, status);
+    const orders = await OrdersService.getUserOrdersByStatus(userId, status);
 
-    // For now, return placeholder
-    return success(res, [], null, `User orders with status '${status}' retrieved successfully`);
+    return success(res, orders, null, `User orders with status '${status}' retrieved successfully`);
   });
 }
 

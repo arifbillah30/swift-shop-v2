@@ -9,7 +9,7 @@ const SettingServices = {
   getGlobalSetting: async () => {
     // Return mock data for now
     return {
-      default_currency: '$',
+      default_currency: '৳',
       app_name: 'Swift Shop',
       app_version: '1.0.0'
     };

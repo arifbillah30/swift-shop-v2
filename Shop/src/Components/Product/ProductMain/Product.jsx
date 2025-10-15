@@ -1,18 +1,12 @@
 //Frontend/src/Components/Product/ProductMain/Product.jsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import Tooltip from "@mui/material/Tooltip";
 import Zoom from "@mui/material/Zoom";
 
 import { useDispatch, useSelector } from "react-redux";
-import { addToCart } from "../../../Features/Cart/cartSlice";
-
-import product1 from "../../../Assets/ProductDetail/productdetail-1.jpg";
-import product2 from "../../../Assets/ProductDetail/productdetail-2.jpg";
-import product3 from "../../../Assets/ProductDetail/productdetail-3.jpg";
-import product4 from "../../../Assets/ProductDetail/productdetail-4.jpg";
-import product5 from "../../../Assets/ProductDetail/productdetail-5.jpg";
-import product6 from "../../../Assets/ProductDetail/productdetail-6.jpg";
+import { addToCart, addToCartServer } from "../../../Features/Cart/cartSlice";
 
 import { GoChevronLeft } from "react-icons/go";
 import { GoChevronRight } from "react-icons/go";
@@ -21,27 +15,33 @@ import { FiHeart } from "react-icons/fi";
 import { PiShareNetworkLight } from "react-icons/pi";
 
 import { Link } from "react-router-dom";
-
 import toast from "react-hot-toast";
+import { formatPrice } from "../../../utils/currency";
 
 import "./Product.css";
 
 const Product = () => {
-  // Product images Gallery
+  const { slug } = useParams();
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const productImg = [product1, product2, product3, product4, product5, product6];
+  // Product images Gallery
   const [currentImg, setCurrentImg] = useState(0);
 
   const prevImg = () => {
-    setCurrentImg(currentImg === 0 ? productImg.length - 1 : currentImg - 1);
+    if (product && product.images) {
+      setCurrentImg(currentImg === 0 ? product.images.length - 1 : currentImg - 1);
+    }
   };
 
   const nextImg = () => {
-    setCurrentImg(currentImg === productImg.length - 1 ? 0 : currentImg + 1);
+    if (product && product.images) {
+      setCurrentImg(currentImg === product.images.length - 1 ? 0 : currentImg + 1);
+    }
   };
 
   // Product Quantity
-
   const [quantity, setQuantity] = useState(1);
 
   const increment = () => {
@@ -62,32 +62,91 @@ const Product = () => {
   };
 
   // Product WishList
-
   const [clicked, setClicked] = useState(false);
 
   const handleWishClick = () => {
     setClicked(!clicked);
   };
 
-  // Product Colors (Removed Red)
-
+  // Product Colors - will be dynamic based on variants
   const [highlightedColor, setHighlightedColor] = useState("#222222");
-  const colors = ["#222222", "#E4E4E4"];
-  const colorsName = ["Black", "Grey"];
+
+  // Fetch product data
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!slug) {
+        setError("No product slug provided");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await fetch(`http://localhost:4000/api/v1/products/${slug}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          // Transform the product data for the frontend
+          const transformedProduct = {
+            id: data.data.id,
+            name: data.data.name,
+            slug: data.data.slug,
+            description: data.data.description,
+            price: parseFloat(data.data.price || 0),
+            category: data.data.category_name || 'Uncategorized',
+            brand: data.data.brand_name || '',
+            images: data.data.images?.map(img => 
+              img.url.startsWith('http') ? img.url : `http://localhost:4000${img.url}`
+            ) || ["https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
+            variants: data.data.variants || [],
+            reviews: data.data.reviews || [],
+            avg_rating: data.data.avg_rating || 0,
+            review_count: data.data.review_count || 0,
+            tags: data.data.tags ? (typeof data.data.tags === 'string' ? JSON.parse(data.data.tags) : data.data.tags) : []
+          };
+          
+          setProduct(transformedProduct);
+          setError(null);
+        } else {
+          throw new Error('Product not found');
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [slug]);
 
   // Product Detail to Redux
-
   const dispatch = useDispatch();
-
   const cartItems = useSelector((state) => state.cart.items);
+  const isAuthenticated = useSelector((state) => state.cart.isAuthenticated);
 
   const handleAddToCart = () => {
+    if (!product) return;
+
+    // Use the first available variant or create a default one
+    const selectedVariant = product.variants && product.variants.length > 0 
+      ? product.variants[0] 
+      : null;
+
     const productDetails = {
-      productID: 14,
-      productName: "Shintenchi 79 Inch Convertible Sectional Sofa Couch, Modern Linen Fabric L-Shaped",
-      productPrice: 259,
-      frontImg: productImg[0],
-      productReviews: "8k+ reviews",
+      productID: product.id,
+      productName: product.name,
+      productPrice: selectedVariant ? parseFloat(selectedVariant.price) : product.price,
+      frontImg: product.images[0],
+      productReviews: `${product.review_count}+ reviews`,
+      variantID: selectedVariant ? selectedVariant.id : null,
+      slug: product.slug
     };
 
     const productInCart = cartItems.find(
@@ -107,7 +166,18 @@ const Product = () => {
         },
       });
     } else {
-      dispatch(addToCart(productDetails));
+      // Check if user is authenticated for server sync
+      if (isAuthenticated && selectedVariant) {
+        // Use server-side cart
+        dispatch(addToCartServer({ 
+          variantId: selectedVariant.id, 
+          quantity: quantity 
+        }));
+      } else {
+        // Use local cart
+        dispatch(addToCart(productDetails));
+      }
+      
       toast.success(`Added to cart!`, {
         duration: 2000,
         style: {
@@ -122,104 +192,110 @@ const Product = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="productSection">
+        <div className="productShowCase">
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p>Loading product...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <div className="productSection">
+        <div className="productShowCase">
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p>Error: {error || 'Product not found'}</p>
+            <Link to="/shop">← Back to Shop</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="productSection">
         <div className="productShowCase">
           <div className="productGallery">
             <div className="productThumb">
-              <img src={product1} onClick={() => setCurrentImg(0)} alt="" />
-              <img src={product2} onClick={() => setCurrentImg(1)} alt="" />
-              <img src={product3} onClick={() => setCurrentImg(2)} alt="" />
-              <img src={product4} onClick={() => setCurrentImg(3)} alt="" />
-              <img src={product5} onClick={() => setCurrentImg(4)} alt="" />
-              <img src={product6} onClick={() => setCurrentImg(5)} alt="" />
+              {product.images.map((img, index) => (
+                <img 
+                  key={index}
+                  src={img} 
+                  onClick={() => setCurrentImg(index)} 
+                  alt={`${product.name} view ${index + 1}`} 
+                />
+              ))}
             </div>
             <div className="productFullImg">
-              <img src={productImg[currentImg]} alt="" />
-              <div className="buttonsGroup">
-                <button onClick={prevImg} className="directionBtn">
-                  <GoChevronLeft size={18} />
-                </button>
-                <button onClick={nextImg} className="directionBtn">
-                  <GoChevronRight size={18} />
-                </button>
-              </div>
+              <img src={product.images[currentImg]} alt={product.name} />
+              {product.images.length > 1 && (
+                <div className="buttonsGroup">
+                  <button onClick={prevImg} className="directionBtn">
+                    <GoChevronLeft size={18} />
+                  </button>
+                  <button onClick={nextImg} className="directionBtn">
+                    <GoChevronRight size={18} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-
 
           <div className="productDetails">
             <div className="productBreadcrumb">
               <div className="breadcrumbLink">
                 <Link to="/">Home</Link>&nbsp;/&nbsp;
-                <Link to="/shop">The Shop</Link>
+                <Link to="/shop">The Shop</Link>&nbsp;/&nbsp;
+                <span>{product.category}</span>
               </div>
               <div className="prevNextLink">
-                <Link to="/product">
+                <Link to="/shop">
                   <GoChevronLeft />
-                  <p>Prev</p>
-                </Link>
-                <Link to="/product">
-                  <p>Next</p>
-                  <GoChevronRight />
+                  <p>Back to Shop</p>
                 </Link>
               </div>
             </div>
             <div className="productName">
-              <h1>Shintenchi 79 Inch Convertible Sectional Sofa Couch, Modern Linen Fabric L-Shaped</h1>
+              <h1>{product.name}</h1>
             </div>
             <div className="productRating">
-              <FaStar color="#FEC78A" size={10} />
-              <FaStar color="#FEC78A" size={10} />
-              <FaStar color="#FEC78A" size={10} />
-              <FaStar color="#FEC78A" size={10} />
-              <FaStar color="#FEC78A" size={10} />
-              <p>8k+ reviews</p>
+              {[...Array(5)].map((_, i) => (
+                <FaStar 
+                  key={i}
+                  color={i < Math.floor(product.avg_rating || 0) ? "#FEC78A" : "#ddd"} 
+                  size={10} 
+                />
+              ))}
+              <p>{product.review_count}+ reviews</p>
             </div>
-            <div className="productPrice">
-              <h3>$259</h3>
+                        <div className="productPrice">
+              <h3>{formatPrice(259)}</h3>
             </div>
             <div className="productDescription">
-              <p>
-                Phasellus sed volutpat orci. Fusce eget lore mauris vehicula
-                elementum gravida nec dui. Aenean aliquam varius ipsum, non
-                ultricies tellus sodales eu. Donec dignissim viverra nunc, ut
-                aliquet magna posuere eget.
-              </p>
+              <p>{product.description || "No description available."}</p>
             </div>
-            <div className="productColor">
-              <p>Color</p>
-              <div className="colorBtn">
-                {colors.map((color, index) => (
-                  <Tooltip
-                    key={color}
-                    title={colorsName[index]}
-                    placement="top"
-                    enterTouchDelay={0}
-                    TransitionComponent={Zoom}
-                    arrow
-                  >
-                    <button
-                      className={
-                        highlightedColor === color ? "highlighted" : ""
-                      }
-                      style={{
-                        backgroundColor: color.toLowerCase(),
-                        border:
-                          highlightedColor === color
-                            ? "0px solid #000"
-                            : "0px solid white",
-                        padding: "8px",
-                        margin: "5px",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => setHighlightedColor(color)}
-                    />
-                  </Tooltip>
-                ))}
+            
+            {product.variants && product.variants.length > 0 && (
+              <div className="productVariants">
+                <p>Available Options:</p>
+                <div className="variantOptions">
+                  {product.variants.map((variant, index) => (
+                    <div key={index} className="variant">
+                      {variant.color && <span>Color: {variant.color}</span>}
+                      {variant.size && <span>Size: {variant.size}</span>}
+                      {variant.price && <span>Price: {formatPrice(variant.price)}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+            
             <div className="productCartQuantity">
               <div className="productQuantity">
                 <button onClick={decrement}>-</button>
@@ -248,14 +324,21 @@ const Product = () => {
             </div>
             <div className="productTags">
               <p>
-                <span>SKU: </span>N/A
+                <span>SKU: </span>{product.variants?.[0]?.sku || 'N/A'}
               </p>
               <p>
-                  <span>CATEGORIES: </span>Furniture, Living Room, Sofas & Sectionals              
+                <span>CATEGORIES: </span>{product.category}
               </p>
-              <p>
-                  <span>TAGS: </span>sectional, convertible, modern, fabric, L-shaped, sofa
-              </p>
+              {product.brand && (
+                <p>
+                  <span>BRAND: </span>{product.brand}
+                </p>
+              )}
+              {product.tags && product.tags.length > 0 && (
+                <p>
+                  <span>TAGS: </span>{product.tags.join(', ')}
+                </p>
+              )}
             </div>
           </div>
         </div>

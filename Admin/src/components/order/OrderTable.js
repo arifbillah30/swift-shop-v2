@@ -20,7 +20,7 @@ const OrderTable = ({ orders, currency, globalSetting }) => {
           <TableRow key={i + 1}>
             <TableCell>
               <span className="font-semibold uppercase text-xs">
-                {order?.invoice}
+                {order?.invoice || order?.order_number}
               </span>
             </TableCell>
 

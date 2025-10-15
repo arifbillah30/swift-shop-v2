@@ -24,6 +24,8 @@ import Popup from "./Components/PopupBanner/Popup";
 import { Toaster } from "react-hot-toast";
 import AccountDetails from './Components/Dashboard/account-details'; 
 import AccountOrders from './Components/Dashboard/account-orders'; 
+import AccountDashboard from './Components/Dashboard/account-dashboard';
+import AccountWishlist from './Components/Dashboard/account-wishlist';
 import { AuthContextProvider } from "./Context/authContext";  // Import AuthContextProvider
 import ProtectedRoute from "./Context/protectedRoute"; // Import ProtectedRoute
 import AccountAddress from './Components/Dashboard/account-address';
@@ -45,6 +47,7 @@ const App = () => {
           <Route path="/contact" element={<Contact />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/product" element={<ProductDetails />} />
+          <Route path="/product/:slug" element={<ProductDetails />} />
           <Route path="/loginSignUp" element={<Authentication />} />
           <Route path="/resetPassword" element={<ResetPass />} />
           <Route path="/BlogDetails" element={<BlogDetails />} />
@@ -55,6 +58,14 @@ const App = () => {
 
 
           {/* Protected routes */}
+          <Route
+            path="/account-dashboard"
+            element={
+              <ProtectedRoute>
+                <AccountDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/account-details"
             element={
@@ -72,11 +83,19 @@ const App = () => {
               </ProtectedRoute>
             }
           />
-             <Route
+          <Route
             path="/account-address"
             element={
               <ProtectedRoute>
                 <AccountAddress />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/account-wishlist"
+            element={
+              <ProtectedRoute>
+                <AccountWishlist />
               </ProtectedRoute>
             }
           />

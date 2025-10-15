@@ -7,10 +7,12 @@ import AccordionDetails from "@mui/material/AccordionDetails";
 import { IoIosArrowDown } from "react-icons/io";
 import { BiSearch } from "react-icons/bi";
 import Slider from "@mui/material/Slider";
+import { getCurrencySymbol } from "../../../utils/currency";
 
 const Filter = ({ onPriceChange }) => {
   const [value, setValue] = useState([50, 200]); // Price range state
   const [searchTerm, setSearchTerm] = useState("");
+  const currencySymbol = getCurrencySymbol();
   const [brandsData] = useState([
     { name: "Hatil", count: 2 },           // Bangladesh
     { name: "Otobi", count: 7 },           // Bangladesh
@@ -84,7 +86,7 @@ const Filter = ({ onPriceChange }) => {
             value={value}
             onChange={handleChange}
             valueLabelDisplay="auto"
-            valueLabelFormat={(value) => `$${value}`}
+            valueLabelFormat={(value) => `${currencySymbol}${value}`}
             min={0} // Minimum value
             max={500} // Maximum value
           />
@@ -92,10 +94,10 @@ const Filter = ({ onPriceChange }) => {
           <div className="filterSliderPrice">
             <div className="priceRange">
               <p>
-                Min Price: <span>${value[0]}</span>
+                Min Price: <span>{currencySymbol}{value[0]}</span>
               </p>
               <p>
-                Max Price: <span>${value[1]}</span>
+                Max Price: <span>{currencySymbol}{value[1]}</span>
               </p>
             </div>
           </div>

@@ -16,7 +16,6 @@ const {
  * Admin Products Controller - Admin product management endpoints
  */
 class AdminProductsController {
-
   /**
    * GET /api/v1/admin/products
    * List products for admin
@@ -75,6 +74,10 @@ class AdminProductsController {
           meta_description,
           variants,
           tags,
+          // quantity may come under different names from UI
+          quantity,
+          stock,
+          total_stock,
         } = req.body;
 
         if (!name) {
@@ -82,21 +85,69 @@ class AdminProductsController {
           return validationError(res, { name: 'Product name is required' });
         }
 
-        // Create product
-        const { productId, slug } = await ProductsService.createProduct({
-          name,
-          description,
-          sku,
-          price,
-          discount_price,
-          category_id,
-          brand_id,
-          status,
-          featured,
-          meta_title,
-          meta_description,
-          tags,
-        });
+        // Normalize quantity from any of the accepted fields
+        const qtyRaw = quantity ?? stock ?? total_stock;
+        const parsedQuantity =
+          qtyRaw !== undefined && qtyRaw !== null && `${qtyRaw}`.trim() !== ''
+            ? parseInt(qtyRaw, 10)
+            : 0;
+
+        // Detect if variants were provided
+        let variantData = [];
+        let hasVariants = false;
+        if (variants) {
+          try {
+            variantData = typeof variants === 'string' ? JSON.parse(variants) : variants;
+            hasVariants = Array.isArray(variantData) && variantData.length > 0;
+          } catch (e) {
+            console.error('Variant parse error:', e);
+            variantData = [];
+            hasVariants = false;
+          }
+        }
+
+        // Create product (and inventory if no variants)
+        let productId, slug;
+        if (hasVariants) {
+          // Create product only; each variant can carry its own quantity
+          const result = await ProductsService.createProduct({
+            name,
+            description,
+            sku,
+            price,
+            discount_price,
+            category_id,
+            brand_id,
+            status,
+            featured,
+            meta_title,
+            meta_description,
+            tags,
+          });
+          productId = result.productId;
+          slug = result.slug;
+        } else {
+          // No variants supplied: create product + default variant with inventory
+          const result = await ProductsService.createProductWithInventory(
+            {
+              name,
+              description,
+              sku,
+              price,
+              discount_price,
+              category_id,
+              brand_id,
+              status,
+              featured,
+              meta_title,
+              meta_description,
+              tags,
+            },
+            Number.isFinite(parsedQuantity) ? parsedQuantity : 0
+          );
+          productId = result.productId;
+          slug = result.slug;
+        }
 
         // Handle images
         let finalImages = { heroImage: null, detailImages: [], allImages: [] };
@@ -135,33 +186,34 @@ class AdminProductsController {
           }
         }
 
-        // Handle variants
-        if (variants) {
+        // Handle variants (if any)
+        if (hasVariants) {
           try {
-            const variantData = typeof variants === 'string' ? JSON.parse(variants) : variants;
-            if (Array.isArray(variantData)) {
-              await ProductsService.addProductVariants(productId, variantData);
-            }
+            await ProductsService.addProductVariants(productId, variantData);
           } catch (e) {
-            console.error('Variant parse error (continuing):', e);
+            console.error('Variant insert error (continuing):', e);
           }
         }
 
         // Get created product with details
         const createdProduct = await ProductsService.getProductById(productId);
 
-        return success(res, {
-          product: createdProduct,
-          images: finalImages,
-          productId,
-          slug,
-        }, null, 'Product created successfully');
-
+        return success(
+          res,
+          {
+            product: createdProduct,
+            images: finalImages,
+            productId,
+            slug,
+          },
+          null,
+          'Product created successfully'
+        );
       } catch (error) {
         if (req.files) cleanupFiles(req.files);
         throw error;
       }
-    })
+    }),
   ];
 
   /**
@@ -186,27 +238,41 @@ class AdminProductsController {
           meta_title,
           meta_description,
           tags,
+          // quantity may come under different names from UI
+          quantity,
+          stock,
+          total_stock,
         } = req.body;
 
         if (!name) {
           return validationError(res, { name: 'Product name is required' });
         }
 
-        // Update product
-        const updated = await ProductsService.updateProduct(id, {
-          name,
-          description,
-          sku,
-          price,
-          discount_price,
-          category_id,
-          brand_id,
-          status,
-          featured,
-          meta_title,
-          meta_description,
-          tags,
-        });
+        // Only update inventory if caller actually sent a value
+        const qtyRaw = quantity ?? stock ?? total_stock;
+        const parsedQuantity =
+          qtyRaw !== undefined && qtyRaw !== null && `${qtyRaw}`.trim() !== ''
+            ? parseInt(qtyRaw, 10)
+            : null;
+
+        const updated = await ProductsService.updateProductWithInventory(
+          id,
+          {
+            name,
+            description,
+            sku,
+            price,
+            discount_price,
+            category_id,
+            brand_id,
+            status,
+            featured,
+            meta_title,
+            meta_description,
+            tags,
+          },
+          parsedQuantity
+        );
 
         if (!updated) {
           return notFound(res, 'Product');
@@ -247,12 +313,11 @@ class AdminProductsController {
         }
 
         return success(res, { productId: id }, null, 'Product updated successfully');
-
       } catch (error) {
         if (req.files) cleanupFiles(req.files);
         throw error;
       }
-    })
+    }),
   ];
 
   /**
@@ -277,7 +342,9 @@ class AdminProductsController {
       return success(res, { productId: id }, null, 'Product status updated successfully');
     } catch (error) {
       if (error.message === 'Invalid status value') {
-        return validationError(res, { status: 'Invalid status value. Must be show/hide or active/draft/archived' });
+        return validationError(res, {
+          status: 'Invalid status value. Must be show/hide or active/draft/archived',
+        });
       }
       throw error;
     }
@@ -302,10 +369,15 @@ class AdminProductsController {
       return notFound(res, 'Product');
     }
 
-    return success(res, {
-      productId: id,
-      productName: product.name,
-    }, null, 'Product permanently deleted from database');
+    return success(
+      res,
+      {
+        productId: id,
+        productName: product.name,
+      },
+      null,
+      'Product permanently deleted from database'
+    );
   });
 
   /**
@@ -321,10 +393,15 @@ class AdminProductsController {
 
     const deleted = await ProductsService.deleteManyProducts(ids);
 
-    return success(res, {
-      deletedCount: deleted,
-      productIds: ids,
-    }, null, `${deleted} product(s) successfully deleted`);
+    return success(
+      res,
+      {
+        deletedCount: deleted,
+        productIds: ids,
+      },
+      null,
+      `${deleted} product(s) successfully deleted`
+    );
   });
 
   /**
@@ -342,33 +419,45 @@ class AdminProductsController {
         }
 
         if (!req.files || !Object.keys(req.files).length) {
-          return success(res, {
-            previews: [],
-            productSlug: ProductsService.createSlug ? ProductsService.createSlug(name) : name.toLowerCase().replace(/\s+/g, '-'),
-          }, null, 'No images uploaded');
+          return success(
+            res,
+            {
+              previews: [],
+              productSlug: ProductsService.createSlug
+                ? ProductsService.createSlug(name)
+                : name.toLowerCase().replace(/\s+/g, '-'),
+            },
+            null,
+            'No images uploaded'
+          );
         }
 
         const previews = generateImagePreviews(req.files);
-        const productSlug = ProductsService.createSlug ? ProductsService.createSlug(name) : name.toLowerCase().replace(/\s+/g, '-');
+        const productSlug = ProductsService.createSlug
+          ? ProductsService.createSlug(name)
+          : name.toLowerCase().replace(/\s+/g, '-');
 
-        return success(res, {
-          previews,
-          productSlug,
-          folderPath: `/files/products/images/${productSlug}`,
-          instructions: {
-            selectDefault: 'Choose which image should be the hero image',
-            heroFolder: 'Selected image will be moved to hero/hero.jpg',
-            detailsFolder: 'Other images will be moved to details/details-N.jpg',
+        return success(
+          res,
+          {
+            previews,
+            productSlug,
+            folderPath: `/files/products/images/${productSlug}`,
+            instructions: {
+              selectDefault: 'Choose which image should be the hero image',
+              heroFolder: 'Selected image will be moved to hero/hero.jpg',
+              detailsFolder: 'Other images will be moved to details/details-N.jpg',
+            },
           },
-        }, null, 'Image preview generated successfully');
-
+          null,
+          'Image preview generated successfully'
+        );
       } catch (error) {
         if (req.files) cleanupFiles(req.files);
         throw error;
       }
-    })
+    }),
   ];
-
 }
 
 module.exports = AdminProductsController;

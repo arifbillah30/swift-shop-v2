@@ -85,12 +85,13 @@ const useProductSubmit = (id) => {
                        imageUrl || 
                        (window.pendingProductImages && window.pendingProductImages.length > 0);
       
-      if (!hasImages) {
+      // Only require images for new products, not updates
+      if (!hasImages && !updatedId) {
         setIsSubmitting(false);
         return notifyError("At least one image is required!");
       }
 
-      if (data.originalPrice < data.price) {
+      if (data.originalPrice && data.price && Number(data.originalPrice) < Number(data.price)) {
         setIsSubmitting(false);
         return notifyError(
           "SalePrice must be less then or equal of product price!"
@@ -137,6 +138,8 @@ const useProductSubmit = (id) => {
 
         image: imageUrl,
         stock: variants?.length < 1 ? data.stock : Number(totalStock),
+        quantity: variants?.length < 1 ? data.stock : Number(totalStock), // Add quantity field
+        total_stock: variants?.length < 1 ? data.stock : Number(totalStock), // Add total_stock field
         tag: JSON.stringify(tag),
 
         prices: {
@@ -227,9 +230,10 @@ const useProductSubmit = (id) => {
         }
       }
     } catch (err) {
-      console.log("err", err);
+      console.error("Product update/create error:", err);
+      console.error("Error details:", err.response?.data);
       setIsSubmitting(false);
-      notifyError(err ? err?.response?.data?.message : err.message);
+      notifyError(err?.response?.data?.message || err.message || "Failed to update product");
       closeDrawer();
     }
   };

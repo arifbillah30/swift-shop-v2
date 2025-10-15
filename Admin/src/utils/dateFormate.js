@@ -1,15 +1,30 @@
 import * as dayjs from "dayjs";
 
 const showTimeFormat = (data, timeFormat) => {
-  return dayjs(data).format(timeFormat);
+  if (!data || data === 'Invalid Date') {
+    return 'N/A';
+  }
+  return dayjs(data).format(timeFormat || "h:mm A");
 };
 
 const showDateFormat = (data, dateFormat) => {
-  return dayjs(data).format(dateFormat);
+  if (!data || data === 'Invalid Date') {
+    return 'N/A';
+  }
+  return dayjs(data).format(dateFormat || "MMM D, YYYY");
 };
 
 const showDateTimeFormat = (data, date, time) => {
-  return dayjs(data).format(`${date} ${time}`);
+  // Use default format if date format is not provided
+  const dateFormat = date || "MMM D, YYYY";
+  const timeFormat = time || "h:mm A";
+  
+  // Validate data
+  if (!data || data === 'Invalid Date') {
+    return 'N/A';
+  }
+  
+  return dayjs(data).format(`${dateFormat} ${timeFormat}`);
 };
 
 export { showTimeFormat, showDateFormat, showDateTimeFormat };

@@ -10,7 +10,15 @@ const SelectCurrency = ({
   required,
   // loading,
 }) => {
-  const { data, loading } = useAsync(CurrencyServices.getShowingCurrency);
+  const { data, loading, error } = useAsync(CurrencyServices.getShowingCurrency);
+
+  // Provide fallback currencies when there's an error
+  const fallbackCurrencies = [
+    { _id: 'usd', name: 'US Dollar', symbol: '$' },
+    { _id: 'eur', name: 'Euro', symbol: '€' }
+  ];
+
+  const currencies = error || !data ? fallbackCurrencies : data;
 
   return (
     <>
@@ -24,7 +32,7 @@ const SelectCurrency = ({
             required: required ? false : `${label} is required!`,
           })}
         >
-          {data?.map((currency) => (
+          {currencies?.map((currency) => (
             <option key={currency._id} value={`${currency.symbol}`}>
               {currency?.name}
             </option>

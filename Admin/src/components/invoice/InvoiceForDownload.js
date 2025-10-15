@@ -9,7 +9,7 @@ import {
   View,
 } from "@react-pdf/renderer";
 import { useTranslation } from "react-i18next";
-import logoDark from "../../assets/img/logo/logo-dark.png";
+import logoDark from "../../assets/img/logo/swift-shop-logo.png";
 import { showDateFormat } from "utils/dateFormate";
 
 Font.register({

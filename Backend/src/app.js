@@ -1,4 +1,4 @@
-// src/app.js
+// swift-shop-v2/Backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -10,16 +10,22 @@ const shopProductsRoutes = require('./routes/shop/products.routes');
 const shopAuthRoutes = require('./routes/shop/auth.routes');
 const shopBlogsRoutes = require('./routes/shop/blogs.routes');
 const shopOrdersRoutes = require('./routes/shop/orders.routes');
+const shopCartRoutes = require('./routes/shop/cart.routes');
+const shopWishlistRoutes = require('./routes/shop/wishlist.routes');
+// const shopDashboardRoutes = require('./routes/shop/dashboard.routes');
 
 const adminProductsRoutes = require('./routes/admin/products.routes');
 const adminAuthRoutes = require('./routes/admin/auth.routes');
 const adminBrandsRoutes = require('./routes/admin/brands.routes');
 const adminCategoriesRoutes = require('./routes/admin/categories.routes');
+const adminOrdersRoutes = require('./routes/admin/orders.routes');
+const adminCustomersRoutes = require('./routes/admin/customers.routes');
 
 // Import new MVC routes
 const addressRoutes = require('./routes/addresses.routes');
 const orderRoutes = require('./routes/orders.routes');
 const settingRoutes = require('./routes/settings.routes');
+const customerRoutes = require('./routes/customer.routes');
 
 const app = express();
 
@@ -47,12 +53,17 @@ apiV1.use('/products', shopProductsRoutes);
 apiV1.use('/auth', shopAuthRoutes);
 apiV1.use('/blogs', shopBlogsRoutes);
 apiV1.use('/orders', shopOrdersRoutes);
+apiV1.use('/cart', shopCartRoutes);
+apiV1.use('/wishlist', shopWishlistRoutes);
+// apiV1.use('/user/dashboard', shopDashboardRoutes);
 
 // Admin routes
 apiV1.use('/admin/products', adminProductsRoutes);
 apiV1.use('/admin/auth', adminAuthRoutes);
 apiV1.use('/admin/brands', adminBrandsRoutes);
 apiV1.use('/admin/categories', adminCategoriesRoutes);
+apiV1.use('/admin/orders', adminOrdersRoutes);
+apiV1.use('/admin/customers', adminCustomersRoutes);
 
 // Additional routes
 apiV1.use('/addresses', addressRoutes);
@@ -66,6 +77,7 @@ app.use('/api/v1', apiV1);
 app.use('/auth', shopAuthRoutes); // Legacy auth routes
 app.use('/admin', adminAuthRoutes); // Legacy admin routes  
 app.use('/addresses', addressRoutes); // Legacy address routes (now MVC)
+app.use('/customer', customerRoutes); // Legacy customer routes
 app.use('/', orderRoutes); // Legacy order routes (now MVC)
 app.use('/setting', settingRoutes); // Legacy setting routes (now MVC)
 

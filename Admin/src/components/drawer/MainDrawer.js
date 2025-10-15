@@ -1,4 +1,5 @@
 import { SidebarContext } from "context/SidebarContext";
+import ErrorBoundary from "components/common/ErrorBoundary";
 import Drawer from "rc-drawer";
 import React, { useContext, useEffect, useState } from "react";
 import { FiX } from "react-icons/fi";
@@ -36,7 +37,11 @@ const MainDrawer = ({ children, product }) => {
         <FiX className="mx-auto" />
       </button>
 
-      <div className="flex flex-col w-full h-full justify-between">{children}</div>
+      <div className="flex flex-col w-full h-full justify-between">
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+      </div>
     </Drawer>
   );
 };

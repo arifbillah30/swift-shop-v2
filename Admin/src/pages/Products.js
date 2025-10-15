@@ -20,6 +20,7 @@ import { FiPlus } from "react-icons/fi";
 import useAsync from "hooks/useAsync";
 import useToggleDrawer from "hooks/useToggleDrawer";
 import UploadManyTwo from "components/common/UploadManyTwo";
+import ErrorFallback from "components/common/ErrorFallback";
 import NotFound from "components/table/NotFound";
 import ProductServices from "services/ProductServices";
 import PageTitle from "components/Typography/PageTitle";
@@ -56,7 +57,7 @@ const Products = () => {
     limitData,
   } = useContext(SidebarContext);
 
-  const { data, loading } = useAsync(() =>
+  const { data, loading, error } = useAsync(() =>
     ProductServices.getAllProducts({
       page: currentPage,
       limit: limitData,
@@ -210,6 +211,8 @@ const Products = () => {
 
       {loading ? (
         <TableLoading row={12} col={7} width={160} height={20} />
+      ) : error ? (
+        <ErrorFallback />
       ) : data?.products?.length !== 0 ? (
         <TableContainer className="mb-8 rounded-b-lg">
           <Table>

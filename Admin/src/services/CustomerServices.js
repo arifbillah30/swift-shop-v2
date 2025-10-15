@@ -1,8 +1,10 @@
 import requests from "./httpService";
 
 const CustomerServices = {
-  getAllCustomers: async ({ searchText = "" }) => {
-    return requests.get(`/customer?searchText=${searchText}`);
+  getAllCustomers: async ({ searchText = "" } = {}) => {
+    const response = await requests.get(`/customer?searchText=${searchText}`);
+    // Extract customers array from response
+    return response.customers || [];
   },
 
   addAllCustomers: async (body) => {
@@ -18,7 +20,9 @@ const CustomerServices = {
   },
 
   getCustomerById: async (id) => {
-    return requests.get(`/customer/${id}`);
+    const response = await requests.get(`/customer/${id}`);
+    // Extract customer from response
+    return response.customer || response;
   },
 
   updateCustomer: async (id, body) => {

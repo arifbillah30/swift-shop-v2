@@ -1,7 +1,7 @@
 {
-  "name": "dashtar-admin",
+  "name": "swift-shop-admin",
   "version": "0.1.0",
-  "description": "this is Dashtar-admin built with react.js and tailwindcss",
+  "description": "Swift Shop Admin Panel built with React.js and TailwindCSS",
   "private": true,
   "dependencies": {
     "@cloudinary/react": "^1.11.2",

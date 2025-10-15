@@ -1,7 +1,4 @@
-// src/lib/http.js
-/**
- * Standard HTTP response helpers for consistent API responses
- */
+// swift-shop-v2/Backend/src/lib/http.js
 
 /**
  * Send a successful response

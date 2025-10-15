@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./ShopDetails.css";
 import { useDispatch, useSelector } from "react-redux";
-import { addToCart } from "../../../Features/Cart/cartSlice";
+import { addToCart, addToCartServer } from "../../../Features/Cart/cartSlice";
 import Filter from "../Filters/Filter";
 import { Link } from "react-router-dom";
 import { FiHeart } from "react-icons/fi";
@@ -10,6 +10,7 @@ import { IoFilterSharp, IoClose } from "react-icons/io5";
 import { FaAngleRight, FaAngleLeft } from "react-icons/fa6";
 import { FaCartPlus } from "react-icons/fa";
 import toast from "react-hot-toast";
+import { formatPrice } from "../../../utils/currency";
 
 const ShopDetails = () => {
   const dispatch = useDispatch();
@@ -23,105 +24,50 @@ const ShopDetails = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        // Updated to use correct port and endpoint
-        const response = await fetch('http://localhost:4000/products');
+        // Fetch products from the correct API endpoint
+        const response = await fetch('http://localhost:4000/api/v1/products');
+        
         if (!response.ok) {
-          // If API fails, use mock data
-          console.log('API failed, using mock data');
-          const mockProducts = [
-            {
-              id: 1,
-              name: "iPhone 15 Pro",
-              slug: "iphone-15-pro", 
-              price: "99999.00",
-              primary_image: "https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png",
-              category_name: "Electronics",
-              avg_rating: 4.5,
-              review_count: 25,
-              // Transform to match frontend expectations
-              product_id: 1,
-              product_name: "iPhone 15 Pro",
-              price: "999.99",
-              images: ["https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
-              categories: "Electronics",
-              total_review: 25
-            },
-            {
-              id: 2,
-              name: "Nike Air Max 270",
-              slug: "nike-air-max-270",
-              price: "12000.00", 
-              primary_image: "https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png",
-              category_name: "Sports",
-              avg_rating: 4.3,
-              review_count: 18,
-              // Transform to match frontend expectations
-              product_id: 2,
-              product_name: "Nike Air Max 270",
-              price: "120.00",
-              images: ["https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
-              categories: "Sports", 
-              total_review: 18
-            },
-            {
-              id: 3,
-              name: "Samsung Galaxy S24",
-              slug: "samsung-galaxy-s24",
-              price: "85000.00",
-              primary_image: "https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png", 
-              category_name: "Electronics",
-              avg_rating: 4.4,
-              review_count: 32,
-              // Transform to match frontend expectations
-              product_id: 3,
-              product_name: "Samsung Galaxy S24",
-              price: "850.00",
-              images: ["https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
-              categories: "Electronics",
-              total_review: 32
-            }
-          ];
-          setProducts(mockProducts);
-          return;
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('Product Data:', data);
+        console.log('API Response:', data);
         
         // Transform API data to match frontend expectations
-        if (data.products) {
-          const transformedProducts = data.products.map(product => ({
+        if (data.data && Array.isArray(data.data)) {
+          const transformedProducts = data.data.map(product => ({
             product_id: product.id,
             product_name: product.name,
-            price: (parseFloat(product.price) / 100).toFixed(2), // Convert from cents to dollars
-            images: [product.primary_image || "https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
-            categories: product.category_name,
-            total_review: product.review_count || 0
+            slug: product.slug,
+            price: parseFloat(product.price || product.price_effective || 0).toFixed(2),
+            images: [
+              product.primary_image 
+                ? `http://localhost:4000${product.primary_image}` 
+                : "https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"
+            ],
+            categories: product.category_name || 'Uncategorized',
+            brand: product.brand_name || '',
+            total_review: product.review_count || 0,
+            avg_rating: product.avg_rating || 0,
+            total_stock: product.total_stock || 0,
+            featured: product.featured || false,
+            variant_id: product.default_variant_id // Use real variant ID from API
           }));
           setProducts(transformedProducts);
+          console.log('Transformed Products:', transformedProducts);
+        } else {
+          console.warn('No products found in API response');
+          setProducts([]);
         }
       } catch (error) {
         console.error('Error fetching products:', error);
-        // Fallback to mock data on error
-        const mockProducts = [
-          {
-            product_id: 1,
-            product_name: "iPhone 15 Pro",
-            price: "999.99",
-            images: ["https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
-            categories: "Electronics",
-            total_review: 25
-          },
-          {
-            product_id: 2,
-            product_name: "Nike Air Max 270", 
-            price: "120.00",
-            images: ["https://res.cloudinary.com/ahossain/image/upload/v1655097002/placeholder_kvepfp.png"],
-            categories: "Sports",
-            total_review: 18
-          }
-        ];
-        setProducts(mockProducts);
+        
+        // Fallback to empty array or show error message
+        setProducts([]);
+        
+        // You could also show a toast notification here
+        // toast.error('Failed to load products. Please try again later.');
       }
     };
   
@@ -184,6 +130,7 @@ const ShopDetails = () => {
   };
 
   const cartItems = useSelector((state) => state.cart.items);
+  const isAuthenticated = useSelector((state) => state.cart.isAuthenticated);
 
   const handleAddToCart = (product) => {
 
@@ -193,6 +140,8 @@ const ShopDetails = () => {
       productPrice: parseFloat(product.price),
       frontImg: product.images[0],
       productReviews: product.total_review + "K+ reviews",
+      variantID: product.variant_id || null,
+      slug: product.slug
     };
     
     const productInCart = cartItems.find(
@@ -212,7 +161,18 @@ const ShopDetails = () => {
         },
       });
     } else {
-      dispatch(addToCart(productDetails));
+      // Check if user is authenticated for server sync
+      if (isAuthenticated && productDetails.variantID) {
+        // Use server-side cart
+        dispatch(addToCartServer({ 
+          variantId: productDetails.variantID, 
+          quantity: 1 
+        }));
+      } else {
+        // Use local cart
+        dispatch(addToCart(productDetails));
+      }
+      
       toast.success(`Added to cart!`, {
         duration: 2000,
         style: {
@@ -269,7 +229,7 @@ const ShopDetails = () => {
       sortedProducts.map((product) => (
         <div className="sdProductContainer" key={product.product_id}>
           <div className="sdProductImages">
-            <Link to="/Product" onClick={scrollToTop}>
+            <Link to={`/product/${product.slug}`} onClick={scrollToTop}>
               <img
                 src={product.images[0]} //  first image is the main one
                 alt={product.product_name}
@@ -303,10 +263,10 @@ const ShopDetails = () => {
               />
             </div>
             <div className="sdProductNameInfo">
-              <Link to="/product" onClick={scrollToTop}>
+              <Link to={`/product/${product.slug}`} onClick={scrollToTop}>
                 <h5>{product.product_name}</h5>
               </Link>
-              <p>${product.price}</p>
+              <p>{formatPrice(product.price)}</p>
               <div className="sdProductRatingReviews">
                 <div className="sdProductRatingStar">
                   <FaStar color="#FEC78A" size={10} />
